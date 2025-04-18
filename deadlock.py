@@ -69,15 +69,12 @@ def salvar_resultado(resultado):
     
     return ultimo_id + 1
 
-# === O resto do código continua igual até a parte final ===
-
-# ... [O código existente continua aqui]
-
 recursos = config['recursos']
 processos = config['processos']
 alocacoes = config['alocacoes']
 requisicoes = config['requisicoes']
-# === Criação do grafo ===
+
+# Criação do grafo
 G = nx.MultiDiGraph()
 
 # Adiciona nós
@@ -85,6 +82,9 @@ for r in recursos:
     G.add_node(r, tipo='recurso')
 for p in processos:
     G.add_node(p, tipo='processo')
+
+# Alocações (quem está usando o quê)
+# Requisições (quem está esperando por quê)
 
 # Adiciona arestas de alocação (recurso -> processo)
 for recurso, processos_alocados in alocacoes.items():
@@ -125,9 +125,9 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
     except nx.NetworkXNoCycle:
         return False, []
 
-# === Visualização ===
-pos = nx.spring_layout(G, seed=42)
-plt.figure(figsize=(12, 10))
+# Visualização
+pos = nx.circular_layout(G, scale=1)  # scale controla o tamanho total do layout
+plt.figure(figsize=(20, 15))
 ax = plt.gca()
 
 # Desenha nós personalizados
@@ -156,7 +156,7 @@ for edge in G.edges():
     
     # Ajusta a curvatura baseada no número de arestas paralelas
     # Usando valor do teste2.py para maior espaçamento
-    rad = 2 * (count - 1) if count > 1 else 0.5
+    rad = 1.2 * (count - 1) if count > 1 else 0.5
     
     nx.draw_networkx_edges(
         G, pos,
@@ -171,7 +171,7 @@ for edge in G.edges():
 plt.title("Grafo de Alocação de Recursos")
 plt.show()
 
-# === Resultado ===
+#Resultado
 estah_em_deadlock, ciclo = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
 
 # Registra o resultado no arquivo JSON
@@ -182,9 +182,9 @@ resultado = {
 id_execucao = salvar_resultado(resultado)
 
 if estah_em_deadlock:
-    print(f"⚠️ DEADLOCK detectado! (Execução #{id_execucao})")
+    print(f"!! DEADLOCK detectado! (Execução #{id_execucao})")
     print("Ciclo envolvido:", ' -> '.join(ciclo))
     print(f"Resultado salvo em {results_path}")
 else:
-    print(f"✅ Nenhum deadlock detectado. (Execução #{id_execucao})")
+    print(f"-- Nenhum deadlock detectado. (Execução #{id_execucao})")
     print(f"Resultado salvo em {results_path}")
