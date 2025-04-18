@@ -96,7 +96,7 @@ for processo, recs in requisicoes.items():
     for rec in recs:
         G.add_edge(processo, rec)
 
-# === Função para verificar deadlock considerando as unidades de recursos ===
+#Função para verificar deadlock considerando as unidades de recursos
 def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
     # Calcula unidades alocadas por recurso
     unidades_alocadas = {r: 0 for r in recursos}
@@ -130,8 +130,8 @@ pos = nx.circular_layout(G, scale=1)  # scale controla o tamanho total do layout
 plt.figure(figsize=(20, 15))
 ax = plt.gca()
 
-# Desenha nós personalizados
-for node, (x, y) in pos.items():
+
+for node, (x, y) in pos.items(): # Desenha nós
     if G.nodes[node]['tipo'] == 'processo':
         ax.add_patch(Rectangle((x-0.05, y-0.05), 0.1, 0.1, color='skyblue', ec='black'))
         plt.text(x, y, node, ha='center', va='center', fontsize=10)
@@ -139,8 +139,8 @@ for node, (x, y) in pos.items():
         ax.add_patch(Circle((x, y), radius=0.07, color='lightgreen', ec='black'))
         plt.text(x, y+0.1, node, ha='center', va='center', fontsize=10)
 
-        # Desenha bolinhas internas representando unidades
-        total_unidades = recursos[node]
+       
+        total_unidades = recursos[node]  # Desenha bolinhas internas representando unidades
         for i in range(total_unidades):
             dx = (i - total_unidades / 2) * 0.03 + 0.015
             dy = -0.08
@@ -149,13 +149,12 @@ for node, (x, y) in pos.items():
 # Contar arestas paralelas para ajustar as curvas
 edge_counts = defaultdict(int)
 
-# Desenha arestas com flechas individuais
+# Desenha arestas individuai
 for edge in G.edges():
     edge_counts[edge] += 1
     count = edge_counts[edge]
     
-    # Ajusta a curvatura baseada no número de arestas paralelas
-    # Usando valor do teste2.py para maior espaçamento
+    # Ajusta a curvatura
     rad = 1.2 * (count - 1) if count > 1 else 0.5
     
     nx.draw_networkx_edges(
