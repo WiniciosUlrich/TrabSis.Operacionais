@@ -6,7 +6,6 @@ from collections import defaultdict
 import os
 import datetime
 
-# === Carregar dados do arquivo JSON usando caminho absoluto ===
 # Obtém o diretório do script atual
 script_dir = os.path.dirname(os.path.abspath(__file__))
 json_path = os.path.join(script_dir, 'data', 'dados.json')
