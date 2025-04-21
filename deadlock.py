@@ -1,10 +1,11 @@
+import os
+import datetime
 import json
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
 from collections import defaultdict
-import os
-import datetime
+
 
 # Obtém o diretório do script atual
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -126,7 +127,7 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
 
 # Visualização
 pos = nx.circular_layout(G, scale=1)  # scale controla o tamanho total do layout
-plt.figure(figsize=(20, 15))
+plt.figure(figsize=(25, 20))
 ax = plt.gca()
 
 
@@ -154,7 +155,7 @@ for edge in G.edges():
     count = edge_counts[edge]
     
     # Ajusta a curvatura
-    rad = 1.2 * (count - 1) if count > 1 else 0.5
+    rad = 1 * (count - 1) if count > 1 else 0.5
     
     nx.draw_networkx_edges(
         G, pos,
