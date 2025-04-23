@@ -6,12 +6,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
 from collections import defaultdict
 
-
-# Obtém o diretório do script atual
 script_dir = os.path.dirname(os.path.abspath(__file__))
 json_path = os.path.join(script_dir, 'data', 'dados.json')
 
-# Caminho para arquivo de resultados
 results_path = os.path.join(script_dir, 'data', 'resultados.json')
 
 try:
