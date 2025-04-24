@@ -53,11 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resource Allocation Graph Generator</title>
+    <title>Gerador de Grafo de Alocação de Recursos</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -72,28 +72,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
     <div class="max-w-4xl w-full p-6 bg-white rounded-lg shadow-lg">
-        <h1 class="text-2xl font-bold mb-4 text-center">Resource Allocation Graph Generator</h1>
-        <p class="text-gray-600 mb-6">Enter each item on a new line in the fields below.</p>
+        <h1 class="text-2xl font-bold mb-4 text-center">Gerador de Grafo de Alocação de Recursos</h1>
+        <p class="text-gray-600 mb-6">Insira cada item em uma nova linha nos campos abaixo.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Resources (e.g., R1:2)</label>
+                <label class="block text-sm font-medium text-gray-700">Recursos (ex: R1:2)</label>
                 <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="R1:2&#10;R2:1"></textarea>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Processes (e.g., P1)</label>
+                <label class="block text-sm font-medium text-gray-700">Processos (ex: P1)</label>
                 <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="P1&#10;P2"></textarea>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Allocations (e.g., R1:P1)</label>
+                <label class="block text-sm font-medium text-gray-700">Alocações (ex: R1:P1)</label>
                 <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="R1:P1&#10;R2:P2"></textarea>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Requests (e.g., P1:R1)</label>
+                <label class="block text-sm font-medium text-gray-700">Requisições (ex: P1:R1)</label>
                 <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="P1:R1&#10;P2:R2"></textarea>
             </div>
         </div>
         <div class="mt-6 text-center">
-            <button onclick="generateGraph()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Generate Graph</button>
+            <button onclick="generateGraph()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Gerar Grafo</button>
         </div>
         <div id="error-message" class="mt-4 text-center"></div>
         <div id="save-result" class="mt-2 text-center text-sm"></div>
@@ -130,14 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error('Resposta da rede não foi ok');
                 }
                 
                 const data = await response.json();
                 document.getElementById('save-result').innerHTML = `<span class="text-blue-600">Resultado salvo com ID #${data.id}</span>`;
                 return data.id;
             } catch (error) {
-                console.error('Error saving result:', error);
+                console.error('Erro ao salvar resultado:', error);
                 document.getElementById('save-result').innerHTML = `<span class="text-red-600">Erro ao salvar resultado: ${error.message}</span>`;
                 return null;
             }
@@ -151,13 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             saveResultDiv.innerHTML = '';
             graphOutput.innerHTML = '<div class="text-center p-4">Gerando gráfico...</div>';
 
-            // Get input values
+            // Obter valores de entrada
             const recursosText = document.getElementById('recursos-input').value.trim();
             const processosText = document.getElementById('processos-input').value.trim();
             const alocacoesText = document.getElementById('alocacoes-input').value.trim();
             const requisicoesText = document.getElementById('requisicoes-input').value.trim();
 
-            // Initialize JSON structure
+            // Inicializar estrutura JSON
             let config = {
                 recursos: {},
                 processos: [],
@@ -165,12 +165,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 requisicoes: {}
             };
 
-            // Parse recursos (e.g., R1:2)
+            // Analisar recursos (ex: R1:2)
             if (recursosText) {
                 const lines = recursosText.split('\n').map(line => line.trim()).filter(line => line);
                 for (const line of lines) {
                     if (!/^[A-Za-z0-9]+:\d+$/.test(line)) {
-                        errorMessage.textContent = `Invalid resource format: "${line}". Use "R1:2" format.`;
+                        errorMessage.textContent = `Formato de recurso inválido: "${line}". Use o formato "R1:2".`;
                         graphOutput.innerHTML = '';
                         return;
                     }
@@ -179,12 +179,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            // Parse processos (e.g., P1)
+            // Analisar processos (ex: P1)
             if (processosText) {
                 const lines = processosText.split('\n').map(line => line.trim()).filter(line => line);
                 for (const line of lines) {
                     if (!/^[A-Za-z0-9]+$/.test(line)) {
-                        errorMessage.textContent = `Invalid process format: "${line}". Use "P1" format.`;
+                        errorMessage.textContent = `Formato de processo inválido: "${line}". Use o formato "P1".`;
                         graphOutput.innerHTML = '';
                         return;
                     }
@@ -192,12 +192,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            // Parse alocacoes (e.g., R1:P1)
+            // Analisar alocações (ex: R1:P1)
             if (alocacoesText) {
                 const lines = alocacoesText.split('\n').map(line => line.trim()).filter(line => line);
                 for (const line of lines) {
                     if (!/^[A-Za-z0-9]+:[A-Za-z0-9]+$/.test(line)) {
-                        errorMessage.textContent = `Invalid allocation format: "${line}". Use "R1:P1" format.`;
+                        errorMessage.textContent = `Formato de alocação inválido: "${line}". Use o formato "R1:P1".`;
                         graphOutput.innerHTML = '';
                         return;
                     }
@@ -209,12 +209,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            // Parse requisicoes (e.g., P1:R1)
+            // Analisar requisições (ex: P1:R1)
             if (requisicoesText) {
                 const lines = requisicoesText.split('\n').map(line => line.trim()).filter(line => line);
                 for (const line of lines) {
                     if (!/^[A-Za-z0-9]+:[A-Za-z0-9]+$/.test(line)) {
-                        errorMessage.textContent = `Invalid request format: "${line}". Use "P1:R1" format.`;
+                        errorMessage.textContent = `Formato de requisição inválido: "${line}". Use o formato "P1:R1".`;
                         graphOutput.innerHTML = '';
                         return;
                     }
@@ -226,9 +226,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            // Validate that at least one field is non-empty
+            // Validar que pelo menos um campo não está vazio
             if (!recursosText && !processosText && !alocacoesText && !requisicoesText) {
-                errorMessage.textContent = 'Please fill in at least one field.';
+                errorMessage.textContent = 'Por favor, preencha pelo menos um campo.';
                 graphOutput.innerHTML = '';
                 return;
             }
@@ -370,7 +370,7 @@ if estah_em_deadlock and ciclo:
                 bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
 
 # Ajusta limites e margens do gráfico
-plt.axis('off')
+plt.axis('on')
 plt.tight_layout()
 
 # Save to BytesIO and encode to base64
@@ -395,7 +395,7 @@ json.dumps(resultado)
                 const resultObj = JSON.parse(result);
                 
                 // Exibe imagem
-                graphOutput.innerHTML = `<img src="data:image/png;base64,${resultObj.img_base64}" alt="Resource Allocation Graph" class="max-w-full">`;
+                graphOutput.innerHTML = `<img src="data:image/png;base64,${resultObj.img_base64}" alt="Grafo de Alocação de Recursos" class="max-w-full">`;
                 
                 // Exibe mensagem sobre deadlock
                 if (resultObj.deadlock_detectado) {
@@ -407,7 +407,7 @@ json.dumps(resultado)
                 // Salva o resultado no arquivo JSON
                 const execId = await saveResult(config, resultObj);
             } catch (e) {
-                errorMessage.textContent = 'Error generating graph: ' + e.message;
+                errorMessage.textContent = 'Erro ao gerar gráfico: ' + e.message;
                 graphOutput.innerHTML = '';
                 console.error(e);
             }
