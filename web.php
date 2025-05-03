@@ -3,12 +3,12 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_result') {
     $data = json_decode($_POST['data'], true);
     $result_path = __DIR__ . '/data/resultados.json';
-    
+
     // Criar o diretório data se não existir
     if (!file_exists(__DIR__ . '/data')) {
         mkdir(__DIR__ . '/data', 0755, true);
     }
-    
+
     // Carregar resultados existentes
     $resultados = ['execucoes' => []];
     if (file_exists($result_path)) {
@@ -20,14 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
     }
-    
+
     // Determinar próximo ID de execução
     $ultimo_id = 0;
     if (!empty($resultados["execucoes"])) {
         $ids = array_column($resultados["execucoes"], "id");
         $ultimo_id = !empty($ids) ? max($ids) : 0;
     }
-    
+
     // Criar nova entrada
     $timestamp = date("Y-m-d H:i:s");
     $nova_execucao = [
@@ -40,13 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         "alocacoes" => $data["alocacoes"],
         "requisicoes" => $data["requisicoes"]
     ];
-    
+
     // Adicionar à lista
     $resultados["execucoes"][] = $nova_execucao;
-    
+
     // Salvar de volta ao arquivo
     file_put_contents($result_path, json_encode($resultados, JSON_PRETTY_PRINT));
-    
+
     // Retornar o ID da execução
     echo json_encode(["id" => $ultimo_id + 1]);
     exit;
@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,11 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-family: monospace;
             resize: vertical;
         }
+
         #error-message {
             color: #dc2626;
         }
     </style>
 </head>
+
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
     <div class="max-w-4xl w-full p-6 bg-white rounded-lg shadow-lg">
         <h1 class="text-2xl font-bold mb-4 text-center">Gerador de Grafo de Alocação de Recursos</h1>
@@ -77,19 +80,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Recursos (ex: R1:2)</label>
-                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="R1:2&#10;R2:1"></textarea>
+                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
+R1:2</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Processos (ex: P1)</label>
-                <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="P1&#10;P2"></textarea>
+                <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
+P1
+P2</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Alocações (ex: R1:P1)</label>
-                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="R1:P1&#10;R2:P2"></textarea>
+                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
+R1:P1</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Requisições (ex: P1:R1)</label>
-                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5" placeholder="P1:R1&#10;P2:R2"></textarea>
+                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
+P1:R1
+P1:R1 
+P2:R1</textarea>
+                </textarea>
             </div>
         </div>
         <div class="mt-6 text-center">
@@ -119,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 deadlock_detectado: resultObj.deadlock_detectado,
                 ciclo: resultObj.ciclo
             };
-            
+
             try {
                 const response = await fetch('web.php', {
                     method: 'POST',
@@ -128,11 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     },
                     body: `action=save_result&data=${encodeURIComponent(JSON.stringify(saveData))}`
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Resposta da rede não foi ok');
                 }
-                
+
                 const data = await response.json();
                 document.getElementById('save-result').innerHTML = `<span class="text-blue-600">Resultado salvo com ID #${data.id}</span>`;
                 return data.id;
@@ -370,7 +381,7 @@ if estah_em_deadlock and ciclo:
                 bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
 
 # Ajusta limites e margens do gráfico
-plt.axis('on')
+plt.axis('off')
 plt.tight_layout()
 
 # Save to BytesIO and encode to base64
@@ -390,20 +401,20 @@ resultado = {
 # Retornar o resultado como JSON string
 json.dumps(resultado)
                 `);
-                
+
                 // Analisa o resultado JSON
                 const resultObj = JSON.parse(result);
-                
+
                 // Exibe imagem
                 graphOutput.innerHTML = `<img src="data:image/png;base64,${resultObj.img_base64}" alt="Grafo de Alocação de Recursos" class="max-w-full">`;
-                
+
                 // Exibe mensagem sobre deadlock
                 if (resultObj.deadlock_detectado) {
                     errorMessage.innerHTML = `<span class="text-red-600 font-bold">!! DEADLOCK detectado!</span><br>Ciclo envolvido: ${resultObj.ciclo.join(' -> ')}`;
                 } else {
                     errorMessage.innerHTML = `<span class="text-green-600 font-bold">-- Nenhum deadlock detectado.</span>`;
                 }
-                
+
                 // Salva o resultado no arquivo JSON
                 const execId = await saveResult(config, resultObj);
             } catch (e) {
@@ -414,4 +425,5 @@ json.dumps(resultado)
         }
     </script>
 </body>
+
 </html>
