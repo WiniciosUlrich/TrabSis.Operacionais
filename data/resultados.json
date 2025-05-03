@@ -625,6 +625,96 @@
                     "R1"
                 ]
             }
+        },
+        {
+            "id": 14,
+            "timestamp": "2025-05-03 15:02:34",
+            "deadlock_detectado": true,
+            "ciclo": [
+                "R1",
+                "P1"
+            ],
+            "recursos": {
+                "R1": 2
+            },
+            "processos": [
+                "P1",
+                "P2"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R1",
+                    "R1"
+                ],
+                "P2": [
+                    "R1"
+                ]
+            }
+        },
+        {
+            "id": 15,
+            "timestamp": "2025-05-03 15:07:43",
+            "deadlock_detectado": true,
+            "ciclo": [
+                "R1",
+                "P1"
+            ],
+            "recursos": {
+                "R1": 2
+            },
+            "processos": [
+                "P1",
+                "P2"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R1",
+                    "R1"
+                ],
+                "P2": [
+                    "R1"
+                ]
+            }
+        },
+        {
+            "id": 16,
+            "timestamp": "2025-05-03 15:08:19",
+            "deadlock_detectado": true,
+            "ciclo": [
+                "P1",
+                "R1"
+            ],
+            "recursos": {
+                "R1": 2
+            },
+            "processos": [
+                "P1",
+                "P2"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R1",
+                    "R1"
+                ],
+                "P2": [
+                    "R1"
+                ]
+            }
         }
     ]
 }

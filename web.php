@@ -3,12 +3,12 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_result') {
     $data = json_decode($_POST['data'], true);
     $result_path = __DIR__ . '/data/resultados.json';
-
+    
     // Criar o diretório data se não existir
     if (!file_exists(__DIR__ . '/data')) {
         mkdir(__DIR__ . '/data', 0755, true);
     }
-
+    
     // Carregar resultados existentes
     $resultados = ['execucoes' => []];
     if (file_exists($result_path)) {
@@ -20,14 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
     }
-
+    
     // Determinar próximo ID de execução
     $ultimo_id = 0;
     if (!empty($resultados["execucoes"])) {
         $ids = array_column($resultados["execucoes"], "id");
         $ultimo_id = !empty($ids) ? max($ids) : 0;
     }
-
+    
     // Criar nova entrada
     $timestamp = date("Y-m-d H:i:s");
     $nova_execucao = [
@@ -40,13 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         "alocacoes" => $data["alocacoes"],
         "requisicoes" => $data["requisicoes"]
     ];
-
+    
     // Adicionar à lista
     $resultados["execucoes"][] = $nova_execucao;
-
+    
     // Salvar de volta ao arquivo
     file_put_contents($result_path, json_encode($resultados, JSON_PRETTY_PRINT));
-
+    
     // Retornar o ID da execução
     echo json_encode(["id" => $ultimo_id + 1]);
     exit;
@@ -80,27 +80,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Recursos (ex: R1:2)</label>
-                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
-R1:2</textarea>
+                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:2</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Processos (ex: P1)</label>
-                <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
-P1
+                <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">P1
 P2</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Alocações (ex: R1:P1)</label>
-                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
-R1:P1</textarea>
+                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:P1</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Requisições (ex: P1:R1)</label>
-                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">
-P1:R1
+                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">P1:R1
 P1:R1 
 P2:R1</textarea>
-                </textarea>
             </div>
         </div>
         <div class="mt-6 text-center">
@@ -109,6 +104,24 @@ P2:R1</textarea>
         <div id="error-message" class="mt-4 text-center"></div>
         <div id="save-result" class="mt-2 text-center text-sm"></div>
         <div id="graph-output" class="mt-6 flex justify-center"></div>
+        <div class="mt-4 text-center">
+            <button id="btn-historico" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded hidden">Ver Histórico de Verificações</button>
+        </div>
+    </div>
+
+    <!-- Modal de histórico -->
+    <div id="modal-historico" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full h-3/4 overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Histórico de Verificações de Deadlock</h2>
+                <button id="fechar-modal" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="historico-conteudo" class="space-y-4"></div>
+        </div>
     </div>
 
     <script>
@@ -119,6 +132,9 @@ P2:R1</textarea>
         }
 
         let pyodideReady = loadPyodideAndPackages();
+        
+        // Variável global para armazenar o histórico
+        let historicoVerificacoes = [];
 
         // Função para salvar resultados via AJAX
         async function saveResult(config, resultObj) {
@@ -161,6 +177,9 @@ P2:R1</textarea>
             errorMessage.textContent = '';
             saveResultDiv.innerHTML = '';
             graphOutput.innerHTML = '<div class="text-center p-4">Gerando gráfico...</div>';
+            
+            // Esconde o botão de histórico até que o resultado esteja pronto
+            document.getElementById('btn-historico').classList.add('hidden');
 
             // Obter valores de entrada
             const recursosText = document.getElementById('recursos-input').value.trim();
@@ -284,35 +303,108 @@ for processo, recs in requisicoes.items():
 
 # Função para verificar deadlock considerando as unidades de recursos
 def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
+    # Inicializa o histórico de verificações
+    historico_verificacoes = []
+    
     # Calcula unidades alocadas por recurso
     unidades_alocadas = {r: 0 for r in recursos}
     for recurso, processos_alocados in alocacoes.items():
         unidades_alocadas[recurso] = len(processos_alocados)  # Assume 1 unidade por processo
+    
+    historico_verificacoes.append({
+        "etapa": "Unidades alocadas",
+        "descricao": "Calculando unidades alocadas para cada recurso",
+        "dados": dict(unidades_alocadas)
+    })
 
     # Calcula unidades disponíveis
     unidades_disponiveis = {r: recursos[r] - unidades_alocadas.get(r, 0) for r in recursos}
+    
+    historico_verificacoes.append({
+        "etapa": "Unidades disponíveis",
+        "descricao": "Calculando unidades disponíveis para cada recurso",
+        "dados": dict(unidades_disponiveis)
+    })
 
     # Verifica ciclos
     try:
         ciclos = list(nx.simple_cycles(grafo))
+        
+        historico_verificacoes.append({
+            "etapa": "Ciclos encontrados",
+            "descricao": f"Foram encontrados {len(ciclos)} ciclos no grafo",
+            "dados": [" -> ".join(c) for c in ciclos]
+        })
+        
         for ciclo in ciclos:
             recursos_no_ciclo = set(n for n in ciclo if n.startswith('R'))
             processos_no_ciclo = set(n for n in ciclo if n.startswith('P'))
+            
+            historico_verificacoes.append({
+                "etapa": "Análise de ciclo",
+                "descricao": f"Analisando ciclo: {' -> '.join(ciclo)}",
+                "dados": {
+                    "recursos_no_ciclo": list(recursos_no_ciclo),
+                    "processos_no_ciclo": list(processos_no_ciclo)
+                }
+            })
 
             if recursos_no_ciclo and processos_no_ciclo:
+                historico_verificacoes.append({
+                    "etapa": "Ciclo misto",
+                    "descricao": "Ciclo contém processos e recursos",
+                    "dados": None
+                })
+                
                 # Verifica se as requisições excedem as unidades disponíveis
                 for processo in processos_no_ciclo:
                     for recurso in requisicoes.get(processo, []):
                         if recurso in recursos_no_ciclo:
                             unidades_requisitadas = requisicoes[processo].count(recurso)
+                            
+                            historico_verificacoes.append({
+                                "etapa": "Verificação de requisição",
+                                "descricao": f"Processo {processo} requisita {unidades_requisitadas} unidades do recurso {recurso}",
+                                "dados": {
+                                    "processo": processo,
+                                    "recurso": recurso,
+                                    "unidades_requisitadas": unidades_requisitadas,
+                                    "unidades_disponiveis": unidades_disponiveis[recurso]
+                                }
+                            })
+                            
                             if unidades_requisitadas > unidades_disponiveis[recurso]:
-                                return True, ciclo
-        return False, []
+                                historico_verificacoes.append({
+                                    "etapa": "Deadlock detectado",
+                                    "descricao": f"Deadlock detectado: {processo} precisa de {unidades_requisitadas} unidades de {recurso}, mas só há {unidades_disponiveis[recurso]} disponíveis",
+                                    "dados": {
+                                        "ciclo_deadlock": ciclo
+                                    }
+                                })
+                                return True, ciclo, historico_verificacoes
+            else:
+                historico_verificacoes.append({
+                    "etapa": "Ciclo ignorado",
+                    "descricao": "Ciclo não contém ambos processos e recursos",
+                    "dados": None
+                })
+        
+        historico_verificacoes.append({
+            "etapa": "Sem deadlock",
+            "descricao": "Nenhum deadlock foi detectado após verificar todos os ciclos",
+            "dados": None
+        })
+        return False, [], historico_verificacoes
     except nx.NetworkXNoCycle:
-        return False, []
+        historico_verificacoes.append({
+            "etapa": "Sem ciclos",
+            "descricao": "Não foram encontrados ciclos no grafo",
+            "dados": None
+        })
+        return False, [], historico_verificacoes
 
 # Detecta deadlock
-estah_em_deadlock, ciclo = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
+estah_em_deadlock, ciclo, historico_verificacoes = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
 
 # Criação do título com informação de deadlock
 titulo = "Grafo de Alocação de Recursos"
@@ -395,7 +487,8 @@ plt.close()
 resultado = {
     "img_base64": img_str,
     "deadlock_detectado": bool(estah_em_deadlock),
-    "ciclo": ciclo if estah_em_deadlock else []
+    "ciclo": ciclo if estah_em_deadlock else [],
+    "historico_verificacoes": historico_verificacoes
 }
 
 # Retornar o resultado como JSON string
@@ -404,6 +497,12 @@ json.dumps(resultado)
 
                 // Analisa o resultado JSON
                 const resultObj = JSON.parse(result);
+                
+                // Salva o histórico na variável global
+                historicoVerificacoes = resultObj.historico_verificacoes;
+                
+                // Exibe o botão de histórico
+                document.getElementById('btn-historico').classList.remove('hidden');
 
                 // Exibe imagem
                 graphOutput.innerHTML = `<img src="data:image/png;base64,${resultObj.img_base64}" alt="Grafo de Alocação de Recursos" class="max-w-full">`;
@@ -423,6 +522,53 @@ json.dumps(resultado)
                 console.error(e);
             }
         }
+        
+        // Função para exibir o histórico no modal
+        function exibirHistorico() {
+            const historico = document.getElementById('historico-conteudo');
+            historico.innerHTML = '';
+            
+            historicoVerificacoes.forEach((item, index) => {
+                const etapaEl = document.createElement('div');
+                etapaEl.className = 'border p-3 rounded';
+                
+                // Adiciona classe de cor com base na etapa
+                if (item.etapa.includes('Deadlock detectado')) {
+                    etapaEl.classList.add('bg-red-100');
+                } else if (item.etapa.includes('Sem deadlock')) {
+                    etapaEl.classList.add('bg-green-100');
+                } else if (item.etapa.includes('Verificação')) {
+                    etapaEl.classList.add('bg-yellow-50');
+                } else {
+                    etapaEl.classList.add('bg-gray-50');
+                }
+                
+                etapaEl.innerHTML = `
+                    <h3 class="font-bold">${index + 1}. ${item.etapa}</h3>
+                    <p>${item.descricao}</p>
+                `;
+                
+                if (item.dados) {
+                    const dadosEl = document.createElement('pre');
+                    dadosEl.className = 'mt-2 p-2 bg-gray-100 rounded text-sm overflow-x-auto';
+                    dadosEl.textContent = typeof item.dados === 'object' 
+                        ? JSON.stringify(item.dados, null, 2) 
+                        : item.dados;
+                    etapaEl.appendChild(dadosEl);
+                }
+                
+                historico.appendChild(etapaEl);
+            });
+            
+            // Exibe o modal
+            document.getElementById('modal-historico').classList.remove('hidden');
+        }
+
+        // Event listeners para modal
+        document.getElementById('btn-historico').addEventListener('click', exibirHistorico);
+        document.getElementById('fechar-modal').addEventListener('click', () => {
+            document.getElementById('modal-historico').classList.add('hidden');
+        });
     </script>
 </body>
 
