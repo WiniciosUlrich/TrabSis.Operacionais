@@ -591,14 +591,15 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                                                 destacar_ciclo=ciclo))
                     return True, ciclo, etapas
                 else:
-                    # Criar um grafo sem arestas para mostrar o resultado final
-                    grafo_sem_arestas = grafo.copy()
-                    for u, v in list(grafo_sem_arestas.edges()):
-                        grafo_sem_arestas.remove_edge(u, v)
+                    # Em vez de remover todas as arestas, torná-las todas brancas
+                    edge_colors = {}
+                    for u, v in grafo.edges():
+                        edge_colors[(u, v)] = 'white'
                     
                     etapas.append(renderizar_grafo(
-                        grafo_sem_arestas, 
+                        grafo,  # Usar o grafo original (sem remover arestas)
                         pos, 
+                        edge_colors=edge_colors,  # Todas as arestas ficam brancas
                         titulo="Nenhum deadlock real encontrado - Todos os processos podem ser executados",
                     ))
         
