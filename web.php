@@ -575,14 +575,16 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                 # usando o algoritmo do banqueiro
                 sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
                 
-                # Adicionar imagens das etapas da verificação de sequência segura
+                # Adicionar apenas imagens importantes (ignorar as imagens de "Rodada")
                 for step_title, step_grafo, step_node_colors in seq_steps:
-                    etapas.append(renderizar_grafo(
-                        step_grafo, 
-                        pos, 
-                        node_colors=step_node_colors,
-                        titulo=step_title
-                    ))
+                    # Pular imagens com título começando com "Rodada"
+                    if not step_title.startswith("Rodada"):
+                        etapas.append(renderizar_grafo(
+                            step_grafo, 
+                            pos, 
+                            node_colors=step_node_colors,
+                            titulo=step_title
+                        ))
                 
                 if not sequencia_segura:
                     # Se não existe sequência segura, é um deadlock real
