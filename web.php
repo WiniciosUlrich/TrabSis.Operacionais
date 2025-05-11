@@ -545,18 +545,21 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             if grafo_hist.has_edge(a, b):
                 grafo_hist.remove_edge(a, b)
         
-        # Verificar sequência segura
+        # Verificar sequência segura e mostrar TODAS as etapas
         sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
-        
-        # Adicionar apenas as etapas de conclusão
+
+        # Adicionar TODAS as etapas (incluindo as rodadas)
         for step_title, step_grafo, step_node_colors in seq_steps:
-            if not step_title.startswith("Rodada"):
-                etapas.append(renderizar_grafo(
-                    step_grafo,
-                    pos,
-                    node_colors=step_node_colors,
-                    titulo=step_title
-                ))
+            # Colorir todas as arestas em azul durante a verificação final
+            edge_colors = {edge: 'blue' for edge in step_grafo.edges()}
+            
+            etapas.append(renderizar_grafo(
+                step_grafo,
+                pos,
+                node_colors=step_node_colors,
+                edge_colors=edge_colors,  # Adicionando as cores das arestas
+                titulo=step_title
+            ))
         
         # Conclusão final - com ou sem deadlock
         if not sequencia_segura:
