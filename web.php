@@ -415,7 +415,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
         ))
     else:
         node_colors = {p: 'red' for p in processos_restantes}
-        steps.append((
+        steps.append(( 
             f"Deadlock confirmado: {len(processos_restantes)} processos não podem completar",
             grafo_trabalho.copy(),
             node_colors
@@ -442,8 +442,7 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                 etapas.append(renderizar_grafo(grafo, pos, titulo=f"Ciclo {idx_ciclo+1} detectado: {' -> '.join(ciclo)}", destacar_ciclo=ciclo))
                 grafo_atual = grafo.copy()
                 arestas_verificadas = set()
-                # --- NOVA LÓGICA DE HISTÓRICO ---
-                # Monta lista de arestas do ciclo
+                # --- LÓGICA CORRIGIDA DE HISTÓRICO ---
                 arestas_ciclo = []
                 for i in range(len(ciclo)):
                     node_current = ciclo[i]
@@ -451,28 +450,34 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                     arestas_ciclo.append((node_current, node_next))
                 arestas_restantes = arestas_ciclo.copy()
                 rec_disp = {r: recursos[r] - len(alocacoes.get(r, [])) for r in recursos}
-                processos_finalizados = set()
+                aloc_temp = {r: list(alocacoes.get(r, [])) for r in recursos}
                 etapas_ordenadas = []
                 while arestas_restantes:
                     progresso = False
+                    # 1. Remover arestas de alocação (R->P) se possível (libera recursos)
+                    for edge in arestas_restantes:
+                        r, p = edge
+                        if r.startswith('R') and p.startswith('P'):
+                            if p in aloc_temp[r]:
+                                aloc_temp[r].remove(p)
+                                rec_disp[r] += 1
+                                etapas_ordenadas.append(edge)
+                                arestas_restantes.remove(edge)
+                                progresso = True
+                                break
+                    if progresso:
+                        continue
+                    # 2. Remover arestas de requisição (P->R) se houver recurso disponível
                     for edge in arestas_restantes:
                         p, r = edge
                         if p.startswith('P') and r.startswith('R'):
                             if rec_disp[r] > 0:
                                 rec_disp[r] -= 1
-                                # Libera todos os recursos alocados a p
+                                # Ao "atender" a requisição, libera todos os recursos alocados a p
                                 for r2 in recursos:
-                                    if p in alocacoes.get(r2, []):
-                                        rec_disp[r2] += alocacoes[r2].count(p)
-                                processos_finalizados.add(p)
-                                etapas_ordenadas.append(edge)
-                                arestas_restantes.remove(edge)
-                                progresso = True
-                                break
-                    if not progresso:
-                        for edge in arestas_restantes:
-                            r, p = edge
-                            if r.startswith('R') and p.startswith('P'):
+                                    while p in aloc_temp[r2]:
+                                        aloc_temp[r2].remove(p)
+                                        rec_disp[r2] += 1
                                 etapas_ordenadas.append(edge)
                                 arestas_restantes.remove(edge)
                                 progresso = True
@@ -496,7 +501,7 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                     ))
                     if grafo_hist.has_edge(a, b):
                         grafo_hist.remove_edge(a, b)
-                # --- FIM DA NOVA LÓGICA DE HISTÓRICO ---
+                # --- FIM DA LÓGICA CORRIGIDA DE HISTÓRICO ---
                 sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
                 for step_title, step_grafo, step_node_colors in seq_steps:
                     if not step_title.startswith("Rodada"):
