@@ -298,28 +298,22 @@ for processo, recs in requisicoes.items():
     for rec in recs:
         G.add_edge(processo, rec)
 
-# Função para renderizar o grafo em uma imagem
 def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo de Alocação de Recursos", destacar_ciclo=None):
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
-    
-    # Desenhar nós
     for node, (x, y) in pos.items():
-        # Determinar a cor do nó
         if node_colors and node in node_colors:
             color = node_colors[node]
         elif destacar_ciclo and node in destacar_ciclo:
             color = 'red'
         elif G.nodes[node]['tipo'] == 'processo':
             color = 'skyblue'
-        else:  # recurso
+        else:
             color = 'lightgreen'
-            
-        # Desenhar o nó baseado em seu tipo
         if G.nodes[node]['tipo'] == 'processo':
             ax.add_patch(Rectangle((x-0.05, y-0.05), 0.1, 0.1, color=color, ec='black'))
             plt.text(x, y, node, ha='center', va='center', fontsize=10)
-        else:  # recurso
+        else:
             ax.add_patch(Circle((x, y), radius=0.07, color=color, ec='black'))
             plt.text(x, y+0.1, node, ha='center', va='center', fontsize=10)
             total_unidades = recursos[node]
@@ -327,15 +321,11 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
                 dx = (i - total_unidades / 2) * 0.03 + 0.015
                 dy = -0.08
                 ax.add_patch(Circle((x + dx, y + dy), radius=0.01, color='black', ec='black'))
-
-    # Desenhar arestas
     edge_counts = defaultdict(int)
     for edge in G.edges():
         edge_counts[edge] += 1
         count = edge_counts[edge]
         rad = 0.5 * (count - 1) if count > 1 else 0.3
-        
-        # Determinar cor da aresta
         if edge_colors and edge in edge_colors:
             edge_color = edge_colors[edge]
             edge_width = 2.0
@@ -351,7 +341,6 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
         else:
             edge_color = 'black'
             edge_width = 1.0
-        
         nx.draw_networkx_edges(
             G, pos,
             edgelist=[edge],
@@ -362,108 +351,62 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
             edge_color=edge_color,
             width=edge_width
         )
-
     plt.title(titulo)
     plt.axis('off')
     plt.tight_layout()
-
-    # Salvar em BytesIO e codificar em base64
     buf = BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
     img_str = base64.b64encode(buf.getvalue()).decode('utf-8')
     plt.close()
-    
     return img_str
 
-# Função para verificar se existe uma sequência segura usando o algoritmo do banqueiro
 def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
-    # Lista para armazenar etapas da verificação
     steps = []
-    
-    # Inicializar cópias dos dados para manipulação
     recursos_disponiveis = {r: recursos[r] for r in recursos}
     alocacoes_atuais = {r: list(procs) for r, procs in alocacoes.items()}
     requisicoes_atuais = {p: list(reqs) for p, reqs in requisicoes.items()}
-    
-    # Calcular recursos já alocados
     for recurso, processos_list in alocacoes_atuais.items():
         recursos_disponiveis[recurso] -= len(processos_list)
-    
-    # Lista de processos ainda não concluídos
     processos_restantes = list(set([p for p in grafo.nodes() if p.startswith('P')]))
-    
-    # Grafo de trabalho que será modificado durante a simulação
     grafo_trabalho = grafo.copy()
-    
-    # Posicionamento dos nós para visualização consistente
     pos = nx.circular_layout(grafo, scale=1)
-    
-    # Loop até que não haja mais processos ou até que nenhum processo possa avançar
     progresso = True
     rodada = 0
-    
     while processos_restantes and progresso:
         progresso = False
         rodada += 1
-        
-        # Para cada processo restante, verificar se pode completar
         for processo in list(processos_restantes):
-            # Verificar se todas as requisições podem ser atendidas
             pode_completar = True
-            
-            # Contagem de requisições por recurso para este processo
             req_count = {}
             for r in requisicoes_atuais.get(processo, []):
                 req_count[r] = req_count.get(r, 0) + 1
-            
             for recurso, qtd in req_count.items():
                 if qtd > recursos_disponiveis.get(recurso, 0):
                     pode_completar = False
                     break
-            
             if pode_completar:
                 progresso = True
-                
-                # Marcar este processo para coloração na visualização
                 node_colors = {processo: 'green'}
-                
-                # Liberar todos os recursos alocados a este processo
                 for recurso, proc_list in list(alocacoes_atuais.items()):
                     if processo in proc_list:
-                        # Contar quantas instâncias deste recurso estão alocadas ao processo
                         count = proc_list.count(processo)
-                        # Remover todas as instâncias
                         alocacoes_atuais[recurso] = [p for p in proc_list if p != processo]
-                        # Incrementar recursos disponíveis
                         recursos_disponiveis[recurso] += count
-                        
-                        # Remover arestas do grafo de trabalho
                         if grafo_trabalho.has_edge(recurso, processo):
                             grafo_trabalho.remove_edge(recurso, processo)
-                
-                # Remover requisições deste processo
                 if processo in requisicoes_atuais:
                     for recurso in requisicoes_atuais[processo]:
-                        # Remover aresta do grafo de trabalho
                         if grafo_trabalho.has_edge(processo, recurso):
                             grafo_trabalho.remove_edge(processo, recurso)
                     requisicoes_atuais[processo] = []
-                
-                # Adicionar etapa à visualização
                 steps.append((
                     f"Rodada {rodada}: Processo {processo} pode completar",
                     grafo_trabalho.copy(),
                     node_colors
                 ))
-                
-                # Remover processo da lista de restantes
                 processos_restantes.remove(processo)
-    
-    # Se não restaram processos, encontramos uma sequência segura
     sequencia_segura = len(processos_restantes) == 0
-    
-    # Adicionar etapa final
     if sequencia_segura:
         steps.append((
             "Sequência segura encontrada: Todos os processos podem completar",
@@ -471,152 +414,121 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
             {}
         ))
     else:
-        # Colorir processos que não puderam completar
         node_colors = {p: 'red' for p in processos_restantes}
         steps.append((
             f"Deadlock confirmado: {len(processos_restantes)} processos não podem completar",
             grafo_trabalho.copy(),
             node_colors
         ))
-    
     return sequencia_segura, steps
 
-# Função para verificar se um ciclo tem requisições que excedem recursos disponíveis
-def existe_ciclo_com_recursos_insuficientes(ciclo, recursos, alocacoes, requisicoes):
-    # Calcula unidades alocadas por recurso
+def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
+    pos = nx.circular_layout(grafo, scale=1)
+    etapas = []
     unidades_alocadas = {r: 0 for r in recursos}
     for recurso, processos_alocados in alocacoes.items():
         unidades_alocadas[recurso] = len(processos_alocados)
-
-    # Calcula unidades disponíveis
     unidades_disponiveis = {r: recursos[r] - unidades_alocadas.get(r, 0) for r in recursos}
-    
-    # Verifica se algum processo no ciclo requisita mais recursos do que disponível
-    recursos_no_ciclo = set(n for n in ciclo if n.startswith('R'))
-    processos_no_ciclo = set(n for n in ciclo if n.startswith('P'))
-    
-    for processo in processos_no_ciclo:
-        for recurso in requisicoes.get(processo, []):
-            if recurso in recursos_no_ciclo:
-                unidades_requisitadas = requisicoes[processo].count(recurso)
-                if unidades_requisitadas > unidades_disponiveis[recurso]:
-                    return True
-    return False
-
-# Função para verificar deadlock considerando as unidades de recursos
-def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
-    # Gerar um layout único para todas as imagens
-    pos = nx.circular_layout(grafo, scale=1)
-    
-    # Lista para armazenar imagens de cada etapa
-    etapas = []
-    
-    # Calcula unidades alocadas por recurso
-    unidades_alocadas = {r: 0 for r in recursos}
-    for recurso, processos_alocados in alocacoes.items():
-        unidades_alocadas[recurso] = len(processos_alocados)  # Assume 1 unidade por processo
-
-    # Calcula unidades disponíveis
-    unidades_disponiveis = {r: recursos[r] - unidades_alocadas.get(r, 0) for r in recursos}
-
-    # Verifica ciclos
     try:
         ciclos = list(nx.simple_cycles(grafo))
-        
-        # Primeira etapa: grafo inicial
         etapas.append(renderizar_grafo(grafo, pos, titulo="Grafo Inicial"))
-        
         if not ciclos:
             etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum ciclo encontrado"))
             return False, [], etapas
-            
         for idx_ciclo, ciclo in enumerate(ciclos):
             recursos_no_ciclo = set(n for n in ciclo if n.startswith('R'))
             processos_no_ciclo = set(n for n in ciclo if n.startswith('P'))
-
             if recursos_no_ciclo and processos_no_ciclo:
-                # Grafo com o ciclo destacado
                 etapas.append(renderizar_grafo(grafo, pos, titulo=f"Ciclo {idx_ciclo+1} detectado: {' -> '.join(ciclo)}", destacar_ciclo=ciclo))
-                
-                # Para cada nó no ciclo, criar uma imagem do estado atual
                 grafo_atual = grafo.copy()
-                arestas_verificadas = set()  # Conjunto para armazenar arestas já verificadas
-                
+                arestas_verificadas = set()
+                # --- NOVA LÓGICA DE HISTÓRICO ---
+                # Monta lista de arestas do ciclo
+                arestas_ciclo = []
                 for i in range(len(ciclo)):
                     node_current = ciclo[i]
                     node_next = ciclo[(i+1) % len(ciclo)]
-                    
-                    # Marcar nós e arestas para esta etapa
-                    node_colors = {}
-                    for j in range(i+1):
-                        node_colors[ciclo[j]] = 'orange'  # Nós já verificados
-                    
+                    arestas_ciclo.append((node_current, node_next))
+                arestas_restantes = arestas_ciclo.copy()
+                rec_disp = {r: recursos[r] - len(alocacoes.get(r, [])) for r in recursos}
+                processos_finalizados = set()
+                etapas_ordenadas = []
+                while arestas_restantes:
+                    progresso = False
+                    for edge in arestas_restantes:
+                        p, r = edge
+                        if p.startswith('P') and r.startswith('R'):
+                            if rec_disp[r] > 0:
+                                rec_disp[r] -= 1
+                                # Libera todos os recursos alocados a p
+                                for r2 in recursos:
+                                    if p in alocacoes.get(r2, []):
+                                        rec_disp[r2] += alocacoes[r2].count(p)
+                                processos_finalizados.add(p)
+                                etapas_ordenadas.append(edge)
+                                arestas_restantes.remove(edge)
+                                progresso = True
+                                break
+                    if not progresso:
+                        for edge in arestas_restantes:
+                            r, p = edge
+                            if r.startswith('R') and p.startswith('P'):
+                                etapas_ordenadas.append(edge)
+                                arestas_restantes.remove(edge)
+                                progresso = True
+                                break
+                    if not progresso:
+                        break
+                # Gera imagens do histórico conforme a ordem correta
+                grafo_hist = grafo.copy()
+                for idx, (a, b) in enumerate(etapas_ordenadas):
                     edge_colors = {}
-                    # Destacar a aresta atual sendo verificada
-                    edge_colors[(node_current, node_next)] = 'blue'
-                    
-                    # Colorir arestas já verificadas de branco (invisíveis)
-                    for u, v in arestas_verificadas:
-                        edge_colors[(u, v)] = 'white'
-                    
-                    # Gerar imagem desta etapa
+                    for i, (u, v) in enumerate(etapas_ordenadas):
+                        if i < idx:
+                            edge_colors[(u, v)] = 'white'
+                        elif i == idx:
+                            edge_colors[(u, v)] = 'blue'
                     etapas.append(renderizar_grafo(
-                        grafo_atual, 
-                        pos, 
-                        node_colors=node_colors, 
+                        grafo_hist,
+                        pos,
                         edge_colors=edge_colors,
-                        titulo=f"Verificando aresta: {node_current} -> {node_next} (Etapa {len(etapas)})"
+                        titulo=f"Removendo aresta: {a} -> {b} (Etapa {len(etapas)})"
                     ))
-                    
-                    # Adicionar aresta ao conjunto de verificadas
-                    arestas_verificadas.add((node_current, node_next))
-                
-                # MELHORIA: Verificar se é possível executar os processos com os recursos disponíveis
-                # usando o algoritmo do banqueiro
+                    if grafo_hist.has_edge(a, b):
+                        grafo_hist.remove_edge(a, b)
+                # --- FIM DA NOVA LÓGICA DE HISTÓRICO ---
                 sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
-                
-                # Adicionar apenas imagens importantes (ignorar as imagens de "Rodada")
                 for step_title, step_grafo, step_node_colors in seq_steps:
-                    # Pular imagens com título começando com "Rodada"
                     if not step_title.startswith("Rodada"):
                         etapas.append(renderizar_grafo(
-                            step_grafo, 
-                            pos, 
+                            step_grafo,
+                            pos,
                             node_colors=step_node_colors,
                             titulo=step_title
                         ))
-                
                 if not sequencia_segura:
-                    # Se não existe sequência segura, é um deadlock real
-                    etapas.append(renderizar_grafo(grafo, pos, 
-                                                titulo=f"DEADLOCK CONFIRMADO: {' -> '.join(ciclo)}", 
+                    etapas.append(renderizar_grafo(grafo, pos,
+                                                titulo=f"DEADLOCK CONFIRMADO: {' -> '.join(ciclo)}",
                                                 destacar_ciclo=ciclo))
                     return True, ciclo, etapas
                 else:
-                    # Em vez de remover todas as arestas, torná-las todas brancas
                     edge_colors = {}
                     for u, v in grafo.edges():
                         edge_colors[(u, v)] = 'white'
-                    
                     etapas.append(renderizar_grafo(
-                        grafo,  # Usar o grafo original (sem remover arestas)
-                        pos, 
-                        edge_colors=edge_colors,  # Todas as arestas ficam brancas
+                        grafo,
+                        pos,
+                        edge_colors=edge_colors,
                         titulo="Nenhum deadlock real encontrado - Todos os processos podem ser executados",
                     ))
-        
-        # Se chegou aqui, não há deadlock real
         etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum deadlock real detectado"))
         return False, [], etapas
-    
     except nx.NetworkXNoCycle:
         etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum ciclo encontrado"))
         return False, [], etapas
 
-# Detecta deadlock
 estah_em_deadlock, ciclo, etapas_deteccao = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
 
-# Criação do título com informação de deadlock
 titulo = "Grafo de Alocação de Recursos"
 if estah_em_deadlock:
     titulo += " (DEADLOCK DETECTADO)"
@@ -624,18 +536,15 @@ if estah_em_deadlock:
 else:
     ciclo_texto = ""
 
-# Visualization para o resultado final
 pos = nx.circular_layout(G, scale=1)
 plt.figure(figsize=(10, 8))
 ax = plt.gca()
-
-# Draw nodes
 for node, (x, y) in pos.items():
     if G.nodes[node]['tipo'] == 'processo':
         color = 'red' if estah_em_deadlock and node in ciclo else 'skyblue'
         ax.add_patch(Rectangle((x-0.05, y-0.05), 0.1, 0.1, color=color, ec='black'))
         plt.text(x, y, node, ha='center', va='center', fontsize=10)
-    else:  # recurso
+    else:
         color = 'red' if estah_em_deadlock and node in ciclo else 'lightgreen'
         ax.add_patch(Circle((x, y), radius=0.07, color=color, ec='black'))
         plt.text(x, y+0.1, node, ha='center', va='center', fontsize=10)
@@ -644,25 +553,19 @@ for node, (x, y) in pos.items():
             dx = (i - total_unidades / 2) * 0.03 + 0.015
             dy = -0.08
             ax.add_patch(Circle((x + dx, y + dy), radius=0.01, color='black', ec='black'))
-
-# Count parallel edges for curvature
 edge_counts = defaultdict(int)
 for edge in G.edges():
     edge_counts[edge] += 1
     count = edge_counts[edge]
     rad = 0.5 * (count - 1) if count > 1 else 0.3
-    
-    # Verifica se a aresta faz parte do ciclo de deadlock
     is_in_cycle = False
     if estah_em_deadlock and edge[0] in ciclo and edge[1] in ciclo:
         idx0 = ciclo.index(edge[0])
         idx1 = ciclo.index(edge[1])
         if idx1 == (idx0 + 1) % len(ciclo):
             is_in_cycle = True
-            
     edge_color = 'red' if is_in_cycle else 'black'
     edge_width = 2.0 if is_in_cycle else 1.0
-    
     nx.draw_networkx_edges(
         G, pos,
         edgelist=[edge],
@@ -673,35 +576,24 @@ for edge in G.edges():
         edge_color=edge_color,
         width=edge_width
     )
-
 plt.title(titulo)
-
-# Se houver deadlock e ciclo, adicionar texto explicando o ciclo
 if estah_em_deadlock and ciclo:
-    plt.figtext(0.5, 0.01, f"Ciclo de deadlock: {ciclo_texto}", 
-                ha="center", fontsize=10, 
+    plt.figtext(0.5, 0.01, f"Ciclo de deadlock: {ciclo_texto}",
+                ha="center", fontsize=10,
                 bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
-
-# Ajusta limites e margens do gráfico
 plt.axis('off')
 plt.tight_layout()
-
-# Save to BytesIO and encode to base64
 buf = BytesIO()
 plt.savefig(buf, format='png', bbox_inches='tight')
 buf.seek(0)
 img_str = base64.b64encode(buf.getvalue()).decode('utf-8')
 plt.close()
-
-# Preparar resultado para retorno ao JavaScript
 resultado = {
     "img_base64": img_str,
     "deadlock_detectado": bool(estah_em_deadlock),
     "ciclo": ciclo if estah_em_deadlock else [],
     "etapas": etapas_deteccao
 }
-
-# Retornar o resultado como JSON string
 json.dumps(resultado)
                 `);
                 
