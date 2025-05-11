@@ -545,22 +545,33 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             if grafo_hist.has_edge(a, b):
                 grafo_hist.remove_edge(a, b)
         
-        # Verificar sequência segura e mostrar TODAS as etapas
+        # Verificar sequência segura
         sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
 
-        # Adicionar TODAS as etapas (incluindo as rodadas)
+        # Adicionar TODAS as etapas com destaque de arestas
+        grafo_anterior = grafo.copy()  # Começamos com o grafo completo
         for step_title, step_grafo, step_node_colors in seq_steps:
-            # Colorir todas as arestas em azul durante a verificação final
-            edge_colors = {edge: 'blue' for edge in step_grafo.edges()}
+            # Comparar o grafo atual com o anterior para encontrar arestas removidas
+            edge_colors = {}
             
+            # Verificar quais arestas foram removidas (arestas no grafo anterior que não estão no atual)
+            for edge in grafo_anterior.edges():
+                if not step_grafo.has_edge(*edge):
+                    # Esta aresta foi removida nesta etapa, marcá-la em azul no grafo anterior
+                    edge_colors[edge] = 'blue'
+            
+            # Renderizar a etapa atual com as arestas destacadas
             etapas.append(renderizar_grafo(
-                step_grafo,
+                grafo_anterior,  # Use o grafo anterior para mostrar a aresta antes de ser removida
                 pos,
                 node_colors=step_node_colors,
-                edge_colors=edge_colors,  # Adicionando as cores das arestas
+                edge_colors=edge_colors,
                 titulo=step_title
             ))
-        
+            
+            # Atualizar o grafo anterior para a próxima comparação
+            grafo_anterior = step_grafo.copy()
+                
         # Conclusão final - com ou sem deadlock
         if not sequencia_segura:
             etapas.append(renderizar_grafo(

@@ -176,6 +176,142 @@
                     "R3"
                 ]
             }
+        },
+        {
+            "id": 6,
+            "timestamp": "2025-05-11 21:38:48",
+            "deadlock_detectado": true,
+            "ciclo": [
+                "P1",
+                "R1"
+            ],
+            "recursos": {
+                "R1": 2
+            },
+            "processos": [
+                "P1",
+                "P2"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R1",
+                    "R1"
+                ]
+            }
+        },
+        {
+            "id": 7,
+            "timestamp": "2025-05-11 21:39:02",
+            "deadlock_detectado": false,
+            "ciclo": [],
+            "recursos": {
+                "R1": 2,
+                "R2": 3,
+                "R3": 2
+            },
+            "processos": [
+                "P1",
+                "P2",
+                "P3"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1",
+                    "P2"
+                ],
+                "R2": [
+                    "P3",
+                    "P3",
+                    "P2"
+                ],
+                "R3": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R2"
+                ],
+                "P2": [
+                    "R3"
+                ],
+                "P3": [
+                    "R3"
+                ]
+            }
+        },
+        {
+            "id": 8,
+            "timestamp": "2025-05-11 21:41:45",
+            "deadlock_detectado": true,
+            "ciclo": [
+                "R1",
+                "P1"
+            ],
+            "recursos": {
+                "R1": 2
+            },
+            "processos": [
+                "P1",
+                "P2"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R1",
+                    "R1"
+                ]
+            }
+        },
+        {
+            "id": 9,
+            "timestamp": "2025-05-11 21:42:02",
+            "deadlock_detectado": false,
+            "ciclo": [],
+            "recursos": {
+                "R1": 2,
+                "R2": 3,
+                "R3": 2
+            },
+            "processos": [
+                "P1",
+                "P2",
+                "P3"
+            ],
+            "alocacoes": {
+                "R1": [
+                    "P1",
+                    "P2"
+                ],
+                "R2": [
+                    "P3",
+                    "P3",
+                    "P2"
+                ],
+                "R3": [
+                    "P1"
+                ]
+            },
+            "requisicoes": {
+                "P1": [
+                    "R2"
+                ],
+                "P2": [
+                    "R3"
+                ],
+                "P3": [
+                    "R3"
+                ]
+            }
         }
     ]
 }
