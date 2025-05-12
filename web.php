@@ -88,23 +88,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Recursos (ex: R1:2)</label>
-                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:2</textarea>
+                                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:2
+R2:3
+R3:2</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Processos (ex: P1)</label>
                 <textarea id="processos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">P1
 P2
+P3
 </textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Alocações (ex: R1:P1)</label>
-                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:P1</textarea>
+                <textarea id="alocacoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:P1
+R1:P2
+R2:P3
+R2:P3
+R2:P2
+R3:P1</textarea>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Requisições (ex: P1:R1)</label>
-                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">P1:R1
-P1:R1
-                </textarea>
+                <textarea id="requisicoes-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">P1:R2
+P2:R3
+P3:R3</textarea>
             </div>
         </div>
         <div class="mt-6 text-center">
