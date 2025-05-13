@@ -399,6 +399,9 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     # Contador de rodadas
     rodada = 0
     
+    # Armazenar requisições de cada processo para uso posterior
+    req_counts_por_processo = {}
+    
     # Enquanto houver processos para executar
     while processos_restantes:
         rodada += 1
@@ -413,6 +416,9 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
             # Contar requisições por tipo de recurso
             for r in requisicoes_atuais.get(processo, []):
                 req_count[r] = req_count.get(r, 0) + 1
+                
+            # Armazenar req_count para uso posterior em caso de deadlock
+            req_counts_por_processo[processo] = req_count
             
             # Verificar recursos disponíveis
             for recurso, qtd in req_count.items():
@@ -521,14 +527,67 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
             )
         )
     else:
-        # Processos em deadlock
+        # Processos em deadlock - mostrar cada um individualmente
+        
+        # Etapa 1: Mostrar todos os processos em deadlock juntos
         node_colors = {p: 'red' for p in processos_restantes}
         steps.append(
             renderizar_grafo(
                 grafo_trabalho.copy(),
                 pos,
                 node_colors=node_colors,
-                titulo=f"DEADLOCK: {len(processos_restantes)} processos não podem ser concluídos"
+                titulo=f"DEADLOCK DETECTADO: {len(processos_restantes)} processos bloqueados"
+            )
+        )
+        
+        # Etapa 2: Destacar cada processo em deadlock individualmente
+        for i, processo in enumerate(processos_restantes):
+            # Destacar este processo específico
+            node_colors_individual = {p: 'pink' if p in processos_restantes else 'lightgray' for p in grafo_trabalho.nodes() if p.startswith('P')}
+            node_colors_individual[processo] = 'darkred'  # Destaque especial para o processo atual
+            
+            # Destacar suas requisições
+            edge_colors = {}
+            if processo in requisicoes_atuais:
+                for recurso in requisicoes_atuais[processo]:
+                    if grafo_trabalho.has_edge(processo, recurso):
+                        edge_colors[(processo, recurso)] = 'red'
+            
+            # Destacar recursos alocados a ele
+            for recurso, procs in alocacoes_atuais.items():
+                if processo in procs and grafo_trabalho.has_edge(recurso, processo):
+                    edge_colors[(recurso, processo)] = 'orange'
+            
+            # Recursos que ele precisa mas estão sendo usados por outros processos
+            recursos_bloqueados = []
+            req_count = req_counts_por_processo.get(processo, {})
+            for recurso, qtd in req_count.items():
+                if qtd > recursos_disponiveis.get(recurso, 0):
+                    recursos_bloqueados.append(recurso)
+                    
+            # Texto explicativo sobre o bloqueio
+            if recursos_bloqueados:
+                motivo = f"Aguardando recursos: {', '.join(recursos_bloqueados)}"
+            else:
+                motivo = "Bloqueado em espera circular"
+                
+            steps.append(
+                renderizar_grafo(
+                    grafo_trabalho.copy(),
+                    pos,
+                    node_colors=node_colors_individual,
+                    edge_colors=edge_colors,
+                    titulo=f"Processo {processo} em deadlock ({i+1}/{len(processos_restantes)}): {motivo}"
+                )
+            )
+        
+        # Etapa 3: Mostrar conclusão com todos destacados
+        steps.append(
+            renderizar_grafo(
+                grafo_trabalho.copy(),
+                pos,
+                node_colors=node_colors,
+                titulo=f"CONCLUSÃO: Deadlock confirmado - {len(processos_restantes)} processos não podem ser completados"
             )
         )
     
@@ -545,57 +604,73 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
     # Adicionar etapa inicial
     etapas.append(renderizar_grafo(grafo, pos, titulo="Grafo Inicial"))
     
+    # Verificar sequência segura primeiro (algoritmo do banqueiro)
+    sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
+    
+    # Adicionar todas as etapas da verificação
+    for step_img in seq_steps:
+        etapas.append(step_img)
+    
+    # Análise com base no resultado do algoritmo do banqueiro    
     try:
         ciclos = list(nx.simple_cycles(grafo))
-        if not ciclos:
-            etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum ciclo encontrado"))
-            return False, [], etapas
-            
-        # Encontrar apenas o primeiro ciclo que contenha recursos e processos
-        ciclo_valido = None
+        ciclos_validos = []
+        
+        # Filtrar ciclos válidos (com recursos e processos)
         for ciclo in ciclos:
-            recursos_no_ciclo = set(n for n in ciclo if n.startswith('R'))
-            processos_no_ciclo = set(n for n in ciclo if n.startswith('P'))
-            
+            recursos_no_ciclo = [n for n in ciclo if n.startswith('R')]
+            processos_no_ciclo = [n for n in ciclo if n.startswith('P')]
             if recursos_no_ciclo and processos_no_ciclo:
-                ciclo_valido = ciclo
-                break
-                
-        # Se não encontrou ciclo válido, retorna sem deadlock
-        if not ciclo_valido:
-            etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum ciclo com recursos e processos"))
+                ciclos_validos.append(ciclo)
+        
+        # Se não encontrou ciclo válido mas tem deadlock, é deadlock por falta de recursos
+        if not sequencia_segura and not ciclos_validos:
+            etapas.append(renderizar_grafo(
+                grafo, 
+                pos,
+                titulo="DEADLOCK por falta de recursos (sem ciclos detectáveis)"
+            ))
+            return True, [], etapas
+        
+        # Se tem deadlock e ciclos, mostrar todos os ciclos relevantes
+        if not sequencia_segura and ciclos_validos:
+            # Mostrar até 3 ciclos mais relevantes
+            for i, ciclo in enumerate(ciclos_validos[:3]):
+                etapas.append(renderizar_grafo(
+                    grafo, 
+                    pos,
+                    titulo=f"Ciclo potencial #{i+1}: {' -> '.join(ciclo)}",
+                    destacar_ciclo=ciclo
+                ))
+            
+            # Usar o primeiro ciclo como referência
+            ciclo_principal = ciclos_validos[0]
+            
+            # Conclusão final
+            etapas.append(renderizar_grafo(
+                grafo, 
+                pos,
+                titulo=f"DEADLOCK CONFIRMADO: Usando como referência o ciclo {' -> '.join(ciclo_principal)}",
+                destacar_ciclo=ciclo_principal
+            ))
+            return True, ciclo_principal, etapas
+        
+        # Sem deadlock, tudo certo
+        if sequencia_segura:
+            # Já mostramos todas as etapas da sequência segura
             return False, [], etapas
             
-        # Destacar o ciclo encontrado
-        ciclo = ciclo_valido
-        etapas.append(renderizar_grafo(grafo, pos, titulo=f"Ciclo detectado: {' -> '.join(ciclo)}", destacar_ciclo=ciclo))
-        
-        # Verificar sequência segura
-        sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
-
-        # Adicionar todas as etapas da verificação
-        for step_img in seq_steps:
-            etapas.append(step_img)
-        
-        # Conclusão final
+    except nx.NetworkXNoCycle:
+        # Se não tiver ciclos mas tiver deadlock
         if not sequencia_segura:
             etapas.append(renderizar_grafo(
                 grafo, 
                 pos,
-                titulo=f"DEADLOCK CONFIRMADO: {' -> '.join(ciclo)}",
-                destacar_ciclo=ciclo
+                titulo="DEADLOCK por falta de recursos (sem ciclos)"
             ))
-            return True, ciclo, etapas
-        else:
-            etapas.append(renderizar_grafo(
-                grafo,
-                pos,
-                titulo="Nenhum deadlock real encontrado - Todos os processos podem ser executados"
-            ))
-            return False, [], etapas
-            
-    except nx.NetworkXNoCycle:
-        etapas.append(renderizar_grafo(grafo, pos, titulo="Nenhum ciclo encontrado"))
+            return True, [], etapas
+        
+        # Se não tiver ciclos e não tiver deadlock, tudo certo
         return False, [], etapas
 
 estah_em_deadlock, ciclo, etapas_deteccao = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
