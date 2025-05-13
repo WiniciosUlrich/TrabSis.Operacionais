@@ -381,6 +381,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     
     # Criar uma cópia do grafo para trabalhar
     grafo_trabalho = grafo.copy()
+    grafo_original = grafo.copy()  # Guardar o grafo original para a imagem final
     pos = nx.circular_layout(grafo, scale=1)
     
     # Lista de processos a serem executados
@@ -506,11 +507,17 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     sequencia_segura = len(processos_restantes) == 0
     
     if sequencia_segura:
+        # NOVO: Adicionar uma etapa final com o grafo completo e todas as arestas brancas
+        edge_colors = {edge: 'white' for edge in grafo_original.edges()}
+        node_colors = {p: 'lightgray' for p in grafo_original.nodes() if p.startswith('P')}
+        
         steps.append(
             renderizar_grafo(
-                grafo_trabalho.copy(),
+                grafo_original.copy(),  # Usar o grafo original completo!
                 pos,
-                titulo="Sequência segura encontrada: Todos os processos concluídos com sucesso!"
+                edge_colors=edge_colors,  # Todas as arestas brancas
+                node_colors=node_colors,  # Todos os processos em cinza (concluídos)
+                titulo="CONCLUSÃO: Todos os processos foram executados com sucesso!"
             )
         )
     else:
