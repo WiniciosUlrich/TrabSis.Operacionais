@@ -279,7 +279,7 @@ from collections import defaultdict
 import base64
 from io import BytesIO
 
-# Get JSON from JavaScript 
+# Recebe os dados JSON do JavaScript 
 config = ${JSON.stringify(config)}
 
 recursos = config['recursos']
@@ -287,29 +287,32 @@ processos = config['processos']
 alocacoes = config['alocacoes']
 requisicoes = config['requisicoes']
 
-# Create graph
+# Criação do grafo direcionado com múltiplas arestas
 G = nx.MultiDiGraph()
 
-# Add nodes
+# Adiciona nós para recursos e processos
 for r in recursos:
     G.add_node(r, tipo='recurso')
 for p in processos:
     G.add_node(p, tipo='processo')
 
-# Add allocation edges (recurso -> processo)
+# Adiciona arestas de alocação (recurso -> processo)
 for recurso, processos_alocados in alocacoes.items():
     for proc in processos_alocados:
         G.add_edge(recurso, proc)
 
-# Add request edges (processo -> recurso)
+# Adiciona arestas de requisição (processo -> recurso)
 for processo, recs in requisicoes.items():
     for rec in recs:
         G.add_edge(processo, rec)
 
 def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo de Alocação de Recursos", destacar_ciclo=None):
+    """Renderiza o grafo com cores e destaque para visualização"""
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
+    # Desenha os nós com formatos diferentes para processos e recursos
     for node, (x, y) in pos.items():
+        # Determina a cor do nó
         if node_colors and node in node_colors:
             color = node_colors[node]
         elif destacar_ciclo and node in destacar_ciclo:
@@ -318,22 +321,29 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
             color = 'skyblue'
         else:
             color = 'lightgreen'
+            
+        # Desenha retângulos para processos e círculos para recursos
         if G.nodes[node]['tipo'] == 'processo':
             ax.add_patch(Rectangle((x-0.05, y-0.05), 0.1, 0.1, color=color, ec='black'))
             plt.text(x, y, node, ha='center', va='center', fontsize=10)
         else:
             ax.add_patch(Circle((x, y), radius=0.07, color=color, ec='black'))
             plt.text(x, y+0.1, node, ha='center', va='center', fontsize=10)
+            # Desenha pontos para representar as unidades de recursos
             total_unidades = recursos[node]
             for i in range(total_unidades):
                 dx = (i - total_unidades / 2) * 0.03 + 0.015
                 dy = -0.08
                 ax.add_patch(Circle((x + dx, y + dy), radius=0.01, color='black', ec='black'))
+                
+    # Desenha as arestas do grafo
     edge_counts = defaultdict(int)
     for edge in G.edges():
         edge_counts[edge] += 1
         count = edge_counts[edge]
         rad = 0.5 * (count - 1) if count > 1 else 0.3
+        
+        # Determina a cor da aresta
         if edge_colors and edge in edge_colors:
             edge_color = edge_colors[edge]
             edge_width = 2.0
@@ -349,6 +359,8 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
         else:
             edge_color = 'black'
             edge_width = 1.0
+            
+        # Desenha a aresta
         nx.draw_networkx_edges(
             G, pos,
             edgelist=[edge],
@@ -359,6 +371,8 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
             edge_color=edge_color,
             width=edge_width
         )
+        
+    # Finaliza e retorna a imagem
     plt.title(titulo)
     plt.axis('off')
     plt.tight_layout()
@@ -370,24 +384,23 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
     return img_str
 
 def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
+    """Implementa o algoritmo do banqueiro para verificar sequência segura"""
     steps = []
     recursos_disponiveis = {r: recursos[r] for r in recursos}
     alocacoes_atuais = {r: list(procs) for r, procs in alocacoes.items()}
     requisicoes_atuais = {p: list(reqs) for p, reqs in requisicoes.items()}
     
-    # Calcular recursos disponíveis iniciais
+    # Calcula recursos disponíveis iniciais
     for recurso, processos_list in alocacoes_atuais.items():
         recursos_disponiveis[recurso] -= len(processos_list)
     
-    # Criar uma cópia do grafo para trabalhar
+    # Prepara o ambiente de trabalho
     grafo_trabalho = grafo.copy()
-    grafo_original = grafo.copy()  # Guardar o grafo original para a imagem final
+    grafo_original = grafo.copy()  # Guarda o grafo original para imagem final
     pos = nx.circular_layout(grafo, scale=1)
-    
-    # Lista de processos a serem executados
     processos_restantes = [p for p in grafo.nodes() if p.startswith('P')]
     
-    # Etapa 1: Mostrar grafo inicial
+    # Etapa inicial - mostra o estado antes da execução
     steps.append(
         renderizar_grafo(
             grafo_trabalho.copy(),
@@ -396,55 +409,50 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
         )
     )
     
-    # Contador de rodadas
+    # Armazena informações de requisições para uso na análise de deadlock
+    req_counts_por_processo = {}
     rodada = 0
     
-    # Armazenar requisições de cada processo para uso posterior
-    req_counts_por_processo = {}
-    
-    # Enquanto houver processos para executar
+    # Tenta executar processos enquanto houver processos pendentes
     while processos_restantes:
         rodada += 1
         progresso = False
         
-        # Tentar encontrar um processo que pode ser executado
+        # Verifica cada processo pendente
         for processo in list(processos_restantes):
-            # Verificar se há recursos suficientes para este processo
+            # Analisa se o processo pode ser executado
             pode_completar = True
             req_count = {}
             
-            # Contar requisições por tipo de recurso
+            # Conta requisições por recurso
             for r in requisicoes_atuais.get(processo, []):
                 req_count[r] = req_count.get(r, 0) + 1
                 
-            # Armazenar req_count para uso posterior em caso de deadlock
+            # Armazena requisições para diagnóstico de deadlock
             req_counts_por_processo[processo] = req_count
             
-            # Verificar recursos disponíveis
+            # Verifica se há recursos suficientes disponíveis
             for recurso, qtd in req_count.items():
                 if recursos_disponiveis.get(recurso, 0) < qtd:
                     pode_completar = False
                     break
             
-            # Se o processo pode ser executado
+            # EXECUÇÃO DO PROCESSO - se tiver recursos suficientes
             if pode_completar:
                 progresso = True
                 
-                # ETAPA 2: Destacar o processo atual e suas arestas de alocação
+                # 1. Destaca o processo selecionado
                 node_colors = {processo: 'green'}
                 edge_colors = {}
                 
-                # Destacar arestas de alocação (recursos -> processo)
+                # Destaca alocações atuais e requisições
                 for recurso in alocacoes_atuais:
                     if processo in alocacoes_atuais[recurso]:
-                        # Destacar esta aresta
                         edge_colors[(recurso, processo)] = 'blue'
                 
-                # Destacar arestas de requisição (processo -> recursos)
                 for recurso in requisicoes_atuais.get(processo, []):
                     edge_colors[(processo, recurso)] = 'orange'
                 
-                # Adicionar esta etapa
                 steps.append(
                     renderizar_grafo(
                         grafo_trabalho.copy(),
@@ -455,10 +463,10 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                     )
                 )
                 
-                # ETAPA 3: Mostrar recursos sendo utilizados
+                # 2. Mostra recursos sendo utilizados
                 edge_colors_req = {}
                 for recurso in requisicoes_atuais.get(processo, []):
-                    edge_colors_req[(processo, recurso)] = 'red'  # Requisição sendo atendida
+                    edge_colors_req[(processo, recurso)] = 'red'
                 
                 steps.append(
                     renderizar_grafo(
@@ -470,66 +478,64 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                     )
                 )
                 
-                # ETAPA 4: Liberar os recursos e atualizar o grafo
-                # Remover arestas de alocação
+                # 3. Libera recursos e atualiza o grafo
                 for recurso, proc_list in list(alocacoes_atuais.items()):
                     if processo in proc_list:
                         count = proc_list.count(processo)
                         alocacoes_atuais[recurso] = [p for p in proc_list if p != processo]
                         recursos_disponiveis[recurso] += count
                         
-                        # Remover aresta do grafo
                         if grafo_trabalho.has_edge(recurso, processo):
                             grafo_trabalho.remove_edge(recurso, processo)
                 
-                # Remover arestas de requisição
+                # Remove requisições do processo
                 if processo in requisicoes_atuais:
                     for recurso in requisicoes_atuais[processo]:
                         if grafo_trabalho.has_edge(processo, recurso):
                             grafo_trabalho.remove_edge(processo, recurso)
                     requisicoes_atuais[processo] = []
                 
-                # Remover processo da lista restante
+                # Remove processo da lista de pendentes
                 processos_restantes.remove(processo)
                 
-                # ETAPA 5: Mostrar grafo após o processo ser concluído
+                # 4. Mostra resultado após processo concluído
                 steps.append(
                     renderizar_grafo(
                         grafo_trabalho.copy(),
                         pos,
-                        node_colors={processo: 'lightgray'},  # Processo concluído em cinza
+                        node_colors={processo: 'lightgray'},
                         titulo=f"Rodada {rodada}: Processo {processo} concluído, recursos liberados. Disponíveis: {recursos_disponiveis}"
                     )
                 )
                 
-                # Apenas um processo por vez - sair do loop
+                # Processa um processo por vez
                 break
         
-        # Se nenhum processo pôde ser executado, estamos em deadlock
+        # Se nenhum processo pôde executar, temos deadlock
         if not progresso:
             break
     
-    # Resultado final
+    # CONCLUSÃO - Determina se a sequência é segura
     sequencia_segura = len(processos_restantes) == 0
     
     if sequencia_segura:
-        # NOVO: Adicionar uma etapa final com o grafo completo e todas as arestas brancas
+        # Sequência segura: Mostra grafo com arestas brancas
         edge_colors = {edge: 'white' for edge in grafo_original.edges()}
         node_colors = {p: 'lightgray' for p in grafo_original.nodes() if p.startswith('P')}
         
         steps.append(
             renderizar_grafo(
-                grafo_original.copy(),  # Usar o grafo original completo!
+                grafo_original.copy(),
                 pos,
-                edge_colors=edge_colors,  # Todas as arestas brancas
-                node_colors=node_colors,  # Todos os processos em cinza (concluídos)
+                edge_colors=edge_colors,
+                node_colors=node_colors,
                 titulo="CONCLUSÃO: Todos os processos foram executados com sucesso!"
             )
         )
     else:
-        # Processos em deadlock - mostrar cada um individualmente
+        # DEADLOCK: Análise detalhada dos processos bloqueados
         
-        # Etapa 1: Mostrar todos os processos em deadlock juntos
+        # 1. Visão geral dos processos em deadlock
         node_colors = {p: 'red' for p in processos_restantes}
         steps.append(
             renderizar_grafo(
@@ -540,32 +546,34 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
             )
         )
         
-        # Etapa 2: Destacar cada processo em deadlock individualmente
+        # 2. Análise individual de cada processo em deadlock
         for i, processo in enumerate(processos_restantes):
-            # Destacar este processo específico
+            # Destaca o processo atual entre os bloqueados
             node_colors_individual = {p: 'pink' if p in processos_restantes else 'lightgray' for p in grafo_trabalho.nodes() if p.startswith('P')}
-            node_colors_individual[processo] = 'darkred'  # Destaque especial para o processo atual
+            node_colors_individual[processo] = 'darkred'
             
-            # Destacar suas requisições
+            # Destaca as arestas relevantes
             edge_colors = {}
+            
+            # Requisições pendentes
             if processo in requisicoes_atuais:
                 for recurso in requisicoes_atuais[processo]:
                     if grafo_trabalho.has_edge(processo, recurso):
                         edge_colors[(processo, recurso)] = 'red'
             
-            # Destacar recursos alocados a ele
+            # Recursos já alocados
             for recurso, procs in alocacoes_atuais.items():
                 if processo in procs and grafo_trabalho.has_edge(recurso, processo):
                     edge_colors[(recurso, processo)] = 'orange'
             
-            # Recursos que ele precisa mas estão sendo usados por outros processos
+            # Identifica os recursos que causam o bloqueio
             recursos_bloqueados = []
             req_count = req_counts_por_processo.get(processo, {})
             for recurso, qtd in req_count.items():
                 if qtd > recursos_disponiveis.get(recurso, 0):
                     recursos_bloqueados.append(recurso)
                     
-            # Texto explicativo sobre o bloqueio
+            # Determina o motivo do bloqueio
             if recursos_bloqueados:
                 motivo = f"Aguardando recursos: {', '.join(recursos_bloqueados)}"
             else:
@@ -581,7 +589,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                 )
             )
         
-        # Etapa 3: Mostrar conclusão com todos destacados
+        # 3. Conclusão do deadlock
         steps.append(
             renderizar_grafo(
                 grafo_trabalho.copy(),
@@ -594,36 +602,42 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     return sequencia_segura, steps
 
 def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
+    """Função principal para detecção de deadlock considerando unidades de recursos"""
     pos = nx.circular_layout(grafo, scale=1)
     etapas = []
+    
+    # Calcula recursos disponíveis
     unidades_alocadas = {r: 0 for r in recursos}
     for recurso, processos_alocados in alocacoes.items():
         unidades_alocadas[recurso] = len(processos_alocados)
     unidades_disponiveis = {r: recursos[r] - unidades_alocadas.get(r, 0) for r in recursos}
     
-    # Adicionar etapa inicial
+    # Inicia com o grafo original
     etapas.append(renderizar_grafo(grafo, pos, titulo="Grafo Inicial"))
     
-    # Verificar sequência segura primeiro (algoritmo do banqueiro)
+    # ETAPA 1: Verifica sequência segura usando algoritmo do banqueiro
     sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
     
-    # Adicionar todas as etapas da verificação
+    # Adiciona todas as etapas da simulação do banqueiro
     for step_img in seq_steps:
         etapas.append(step_img)
     
-    # Análise com base no resultado do algoritmo do banqueiro    
+    # ETAPA 2: Análise adicional baseada em ciclos
     try:
+        # Busca ciclos no grafo
         ciclos = list(nx.simple_cycles(grafo))
         ciclos_validos = []
         
-        # Filtrar ciclos válidos (com recursos e processos)
+        # Filtra ciclos que contêm tanto recursos quanto processos
         for ciclo in ciclos:
             recursos_no_ciclo = [n for n in ciclo if n.startswith('R')]
             processos_no_ciclo = [n for n in ciclo if n.startswith('P')]
             if recursos_no_ciclo and processos_no_ciclo:
                 ciclos_validos.append(ciclo)
         
-        # Se não encontrou ciclo válido mas tem deadlock, é deadlock por falta de recursos
+        # ANÁLISE DOS RESULTADOS
+        
+        # Caso 1: Deadlock sem ciclos detectáveis
         if not sequencia_segura and not ciclos_validos:
             etapas.append(renderizar_grafo(
                 grafo, 
@@ -632,9 +646,9 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             ))
             return True, [], etapas
         
-        # Se tem deadlock e ciclos, mostrar todos os ciclos relevantes
+        # Caso 2: Deadlock com ciclos
         if not sequencia_segura and ciclos_validos:
-            # Mostrar até 3 ciclos mais relevantes
+            # Mostra os ciclos mais relevantes (até 3)
             for i, ciclo in enumerate(ciclos_validos[:3]):
                 etapas.append(renderizar_grafo(
                     grafo, 
@@ -643,7 +657,7 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
                     destacar_ciclo=ciclo
                 ))
             
-            # Usar o primeiro ciclo como referência
+            # Usa o primeiro ciclo como referência
             ciclo_principal = ciclos_validos[0]
             
             # Conclusão final
@@ -655,13 +669,14 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             ))
             return True, ciclo_principal, etapas
         
-        # Sem deadlock, tudo certo
+        # Caso 3: Sem deadlock
         if sequencia_segura:
-            # Já mostramos todas as etapas da sequência segura
             return False, [], etapas
             
     except nx.NetworkXNoCycle:
-        # Se não tiver ciclos mas tiver deadlock
+        # Caso especial: Sem ciclos no grafo
+        
+        # Deadlock sem ciclos
         if not sequencia_segura:
             etapas.append(renderizar_grafo(
                 grafo, 
@@ -670,11 +685,13 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             ))
             return True, [], etapas
         
-        # Se não tiver ciclos e não tiver deadlock, tudo certo
+        # Sem deadlock e sem ciclos
         return False, [], etapas
 
+# Executa a detecção de deadlock
 estah_em_deadlock, ciclo, etapas_deteccao = detecta_deadlock_com_unidades(G, recursos, alocacoes, requisicoes)
 
+# Prepara a visualização final
 titulo = "Grafo de Alocação de Recursos"
 if estah_em_deadlock:
     titulo += " (DEADLOCK DETECTADO)"
@@ -682,9 +699,12 @@ if estah_em_deadlock:
 else:
     ciclo_texto = ""
 
+# Renderiza o grafo final
 pos = nx.circular_layout(G, scale=1)
 plt.figure(figsize=(10, 8))
 ax = plt.gca()
+
+# Desenha os nós
 for node, (x, y) in pos.items():
     if G.nodes[node]['tipo'] == 'processo':
         color = 'red' if estah_em_deadlock and node in ciclo else 'skyblue'
@@ -699,6 +719,8 @@ for node, (x, y) in pos.items():
             dx = (i - total_unidades / 2) * 0.03 + 0.015
             dy = -0.08
             ax.add_patch(Circle((x + dx, y + dy), radius=0.01, color='black', ec='black'))
+
+# Desenha as arestas
 edge_counts = defaultdict(int)
 for edge in G.edges():
     edge_counts[edge] += 1
@@ -722,6 +744,8 @@ for edge in G.edges():
         edge_color=edge_color,
         width=edge_width
     )
+
+# Finaliza o gráfico
 plt.title(titulo)
 if estah_em_deadlock and ciclo:
     plt.figtext(0.5, 0.01, f"Ciclo de deadlock: {ciclo_texto}",
@@ -734,6 +758,8 @@ plt.savefig(buf, format='png', bbox_inches='tight')
 buf.seek(0)
 img_str = base64.b64encode(buf.getvalue()).decode('utf-8')
 plt.close()
+
+# Prepara o resultado final
 resultado = {
     "img_base64": img_str,
     "deadlock_detectado": bool(estah_em_deadlock),
