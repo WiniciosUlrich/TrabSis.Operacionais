@@ -374,60 +374,157 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     recursos_disponiveis = {r: recursos[r] for r in recursos}
     alocacoes_atuais = {r: list(procs) for r, procs in alocacoes.items()}
     requisicoes_atuais = {p: list(reqs) for p, reqs in requisicoes.items()}
+    
+    # Calcular recursos disponíveis iniciais
     for recurso, processos_list in alocacoes_atuais.items():
         recursos_disponiveis[recurso] -= len(processos_list)
-    processos_restantes = list(set([p for p in grafo.nodes() if p.startswith('P')]))
+    
+    # Criar uma cópia do grafo para trabalhar
     grafo_trabalho = grafo.copy()
     pos = nx.circular_layout(grafo, scale=1)
-    progresso = True
+    
+    # Lista de processos a serem executados
+    processos_restantes = [p for p in grafo.nodes() if p.startswith('P')]
+    
+    # Etapa 1: Mostrar grafo inicial
+    steps.append(
+        renderizar_grafo(
+            grafo_trabalho.copy(),
+            pos,
+            titulo=f"Estado inicial: {len(processos_restantes)} processos, Recursos disponíveis: {recursos_disponiveis}"
+        )
+    )
+    
+    # Contador de rodadas
     rodada = 0
-    while processos_restantes and progresso:
-        progresso = False
+    
+    # Enquanto houver processos para executar
+    while processos_restantes:
         rodada += 1
+        progresso = False
+        
+        # Tentar encontrar um processo que pode ser executado
         for processo in list(processos_restantes):
+            # Verificar se há recursos suficientes para este processo
             pode_completar = True
             req_count = {}
+            
+            # Contar requisições por tipo de recurso
             for r in requisicoes_atuais.get(processo, []):
                 req_count[r] = req_count.get(r, 0) + 1
+            
+            # Verificar recursos disponíveis
             for recurso, qtd in req_count.items():
-                if qtd > recursos_disponiveis.get(recurso, 0):
+                if recursos_disponiveis.get(recurso, 0) < qtd:
                     pode_completar = False
                     break
+            
+            # Se o processo pode ser executado
             if pode_completar:
                 progresso = True
+                
+                # ETAPA 2: Destacar o processo atual e suas arestas de alocação
                 node_colors = {processo: 'green'}
+                edge_colors = {}
+                
+                # Destacar arestas de alocação (recursos -> processo)
+                for recurso in alocacoes_atuais:
+                    if processo in alocacoes_atuais[recurso]:
+                        # Destacar esta aresta
+                        edge_colors[(recurso, processo)] = 'blue'
+                
+                # Destacar arestas de requisição (processo -> recursos)
+                for recurso in requisicoes_atuais.get(processo, []):
+                    edge_colors[(processo, recurso)] = 'orange'
+                
+                # Adicionar esta etapa
+                steps.append(
+                    renderizar_grafo(
+                        grafo_trabalho.copy(),
+                        pos,
+                        node_colors=node_colors,
+                        edge_colors=edge_colors,
+                        titulo=f"Rodada {rodada}: Processo {processo} selecionado para execução"
+                    )
+                )
+                
+                # ETAPA 3: Mostrar recursos sendo utilizados
+                edge_colors_req = {}
+                for recurso in requisicoes_atuais.get(processo, []):
+                    edge_colors_req[(processo, recurso)] = 'red'  # Requisição sendo atendida
+                
+                steps.append(
+                    renderizar_grafo(
+                        grafo_trabalho.copy(),
+                        pos,
+                        node_colors=node_colors,
+                        edge_colors=edge_colors_req,
+                        titulo=f"Rodada {rodada}: Processo {processo} utilizando recursos requisitados"
+                    )
+                )
+                
+                # ETAPA 4: Liberar os recursos e atualizar o grafo
+                # Remover arestas de alocação
                 for recurso, proc_list in list(alocacoes_atuais.items()):
                     if processo in proc_list:
                         count = proc_list.count(processo)
                         alocacoes_atuais[recurso] = [p for p in proc_list if p != processo]
                         recursos_disponiveis[recurso] += count
+                        
+                        # Remover aresta do grafo
                         if grafo_trabalho.has_edge(recurso, processo):
                             grafo_trabalho.remove_edge(recurso, processo)
+                
+                # Remover arestas de requisição
                 if processo in requisicoes_atuais:
                     for recurso in requisicoes_atuais[processo]:
                         if grafo_trabalho.has_edge(processo, recurso):
                             grafo_trabalho.remove_edge(processo, recurso)
                     requisicoes_atuais[processo] = []
-                steps.append((
-                    f"Rodada {rodada}: Processo {processo} pode completar",
-                    grafo_trabalho.copy(),
-                    node_colors
-                ))
+                
+                # Remover processo da lista restante
                 processos_restantes.remove(processo)
+                
+                # ETAPA 5: Mostrar grafo após o processo ser concluído
+                steps.append(
+                    renderizar_grafo(
+                        grafo_trabalho.copy(),
+                        pos,
+                        node_colors={processo: 'lightgray'},  # Processo concluído em cinza
+                        titulo=f"Rodada {rodada}: Processo {processo} concluído, recursos liberados. Disponíveis: {recursos_disponiveis}"
+                    )
+                )
+                
+                # Apenas um processo por vez - sair do loop
+                break
+        
+        # Se nenhum processo pôde ser executado, estamos em deadlock
+        if not progresso:
+            break
+    
+    # Resultado final
     sequencia_segura = len(processos_restantes) == 0
+    
     if sequencia_segura:
-        steps.append((
-            "Sequência segura encontrada: Todos os processos podem completar",
-            grafo_trabalho.copy(),
-            {}
-        ))
+        steps.append(
+            renderizar_grafo(
+                grafo_trabalho.copy(),
+                pos,
+                titulo="Sequência segura encontrada: Todos os processos concluídos com sucesso!"
+            )
+        )
     else:
+        # Processos em deadlock
         node_colors = {p: 'red' for p in processos_restantes}
-        steps.append(( 
-            f"Deadlock confirmado: {len(processos_restantes)} processos não podem completar",
-            grafo_trabalho.copy(),
-            node_colors
-        ))
+        steps.append(
+            renderizar_grafo(
+                grafo_trabalho.copy(),
+                pos,
+                node_colors=node_colors,
+                titulo=f"DEADLOCK: {len(processos_restantes)} processos não podem ser concluídos"
+            )
+        )
+    
     return sequencia_segura, steps
 
 def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
@@ -466,121 +563,14 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
         ciclo = ciclo_valido
         etapas.append(renderizar_grafo(grafo, pos, titulo=f"Ciclo detectado: {' -> '.join(ciclo)}", destacar_ciclo=ciclo))
         
-        # Preparação para analisar o ciclo
-        arestas_ciclo = []
-        for i in range(len(ciclo)):
-            node_current = ciclo[i]
-            node_next = ciclo[(i+1) % len(ciclo)]
-            arestas_ciclo.append((node_current, node_next))
-        
-        # Inicialização das estruturas de dados
-        arestas_restantes = arestas_ciclo.copy()
-        rec_disp = {r: recursos[r] - len(alocacoes.get(r, [])) for r in recursos}
-        aloc_temp = {r: list(alocacoes.get(r, [])) for r in recursos}
-        etapas_ordenadas = []
-        
-        # Processo de resolução passo a passo
-        while arestas_restantes:
-            progresso = False
-            
-            # 1. Processar arestas R->P (liberação de recursos)
-            # Primeiro liberar recursos alocados a processos que não têm mais requisições pendentes
-            for edge in list(arestas_restantes):
-                r, p = edge
-                if r.startswith('R') and p.startswith('P'):
-                    # Só remove se o processo não tiver mais requisições
-                    processo_tem_requisicao = False
-                    for e in arestas_restantes:
-                        if e[0] == p and e[1].startswith('R'):
-                            processo_tem_requisicao = True
-                            break
-                    
-                    if not processo_tem_requisicao:
-                        # Processo não tem mais requisições pendentes, podemos liberar sua alocação
-                        etapas_ordenadas.append(edge)
-                        arestas_restantes.remove(edge)
-                        # Aumentar disponibilidade do recurso
-                        rec_disp[r] += 1
-                        # Remover da lista de alocações atuais
-                        if p in aloc_temp[r]:
-                            aloc_temp[r].remove(p)
-                        progresso = True
-                        break
-            
-            if progresso:
-                continue
-            
-            # 2. Processar arestas P->R (atender requisições)
-            # Agora vamos atender requisições se houver recursos disponíveis
-            for edge in list(arestas_restantes):
-                p, r = edge
-                if p.startswith('P') and r.startswith('R'):
-                    # Verificar disponibilidade REAL
-                    if rec_disp[r] > 0:
-                        # Recurso realmente disponível
-                        rec_disp[r] -= 1  # Consumir o recurso
-                        etapas_ordenadas.append(edge)
-                        arestas_restantes.remove(edge)
-                        # Liberar outros recursos alocados por este processo
-                        for r2 in recursos:
-                            if p in aloc_temp[r2]:
-                                aloc_temp[r2].remove(p)
-                                rec_disp[r2] += 1
-                        progresso = True
-                        break
-            
-            # Se não houve progresso, estamos em deadlock
-            if not progresso:
-                break
-        
-        # Gerar histórico visual
-        grafo_hist = grafo.copy()
-        for idx, (a, b) in enumerate(etapas_ordenadas):
-            edge_colors = {}
-            for i, (u, v) in enumerate(etapas_ordenadas):
-                if i < idx:
-                    edge_colors[(u, v)] = 'white'
-                elif i == idx:
-                    edge_colors[(u, v)] = 'blue'
-            
-            etapas.append(renderizar_grafo(
-                grafo_hist,
-                pos,
-                edge_colors=edge_colors,
-                titulo=f"Removendo aresta: {a} -> {b} (Etapa {len(etapas)})"
-            ))
-            
-            if grafo_hist.has_edge(a, b):
-                grafo_hist.remove_edge(a, b)
-        
         # Verificar sequência segura
         sequencia_segura, seq_steps = verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes)
 
-        # Adicionar TODAS as etapas com destaque de arestas
-        grafo_anterior = grafo.copy()  # Começamos com o grafo completo
-        for step_title, step_grafo, step_node_colors in seq_steps:
-            # Comparar o grafo atual com o anterior para encontrar arestas removidas
-            edge_colors = {}
-            
-            # Verificar quais arestas foram removidas (arestas no grafo anterior que não estão no atual)
-            for edge in grafo_anterior.edges():
-                if not step_grafo.has_edge(*edge):
-                    # Esta aresta foi removida nesta etapa, marcá-la em azul no grafo anterior
-                    edge_colors[edge] = 'blue'
-            
-            # Renderizar a etapa atual com as arestas destacadas
-            etapas.append(renderizar_grafo(
-                grafo_anterior,  # Use o grafo anterior para mostrar a aresta antes de ser removida
-                pos,
-                node_colors=step_node_colors,
-                edge_colors=edge_colors,
-                titulo=step_title
-            ))
-            
-            # Atualizar o grafo anterior para a próxima comparação
-            grafo_anterior = step_grafo.copy()
-                
-        # Conclusão final - com ou sem deadlock
+        # Adicionar todas as etapas da verificação
+        for step_img in seq_steps:
+            etapas.append(step_img)
+        
+        # Conclusão final
         if not sequencia_segura:
             etapas.append(renderizar_grafo(
                 grafo, 
@@ -590,11 +580,9 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
             ))
             return True, ciclo, etapas
         else:
-            edge_colors = {(u, v): 'white' for u, v in grafo.edges()}
             etapas.append(renderizar_grafo(
                 grafo,
                 pos,
-                edge_colors=edge_colors,
                 titulo="Nenhum deadlock real encontrado - Todos os processos podem ser executados"
             ))
             return False, [], etapas
