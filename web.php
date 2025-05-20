@@ -4,12 +4,12 @@ date_default_timezone_set('America/Sao_Paulo');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_result') {
     $data = json_decode($_POST['data'], true);
     $result_path = __DIR__ . '/data/resultados.json';
-    
+
     // Criar o diretório data se não existir
     if (!file_exists(__DIR__ . '/data')) {
         mkdir(__DIR__ . '/data', 0755, true);
     }
-    
+
     // Carregar resultados existentes
     $resultados = ['execucoes' => []];
     if (file_exists($result_path)) {
@@ -21,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
     }
-    
+
     // Determinar próximo ID de execução
     $ultimo_id = 0;
     if (!empty($resultados["execucoes"])) {
         $ids = array_column($resultados["execucoes"], "id");
         $ultimo_id = !empty($ids) ? max($ids) : 0;
     }
-    
+
     // Criar nova entrada
     $timestamp = date("Y-m-d H:i:s");
     $nova_execucao = [
@@ -41,13 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         "alocacoes" => $data["alocacoes"],
         "requisicoes" => $data["requisicoes"]
     ];
-    
+
     // Adicionar à lista
     $resultados["execucoes"][] = $nova_execucao;
-    
+
     // Salvar de volta ao arquivo
     file_put_contents($result_path, json_encode($resultados, JSON_PRETTY_PRINT));
-    
+
     // Retornar o ID da execução
     echo json_encode(["id" => $ultimo_id + 1]);
     exit;
@@ -55,10 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerador de Grafo de Alocação de Recursos</title>
+
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -66,22 +68,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             font-family: monospace;
             resize: vertical;
         }
+
         #error-message {
             color: #dc2626;
         }
+
         .slide-container {
             overflow: hidden;
             width: 100%;
         }
+
         .slide-wrapper {
             display: flex;
             transition: transform 0.3s ease;
         }
+
         .slide {
             flex: 0 0 100%;
         }
     </style>
 </head>
+
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
     <div class="max-w-4xl w-full p-6 bg-white rounded-lg shadow-lg">
         <h1 class="text-2xl font-bold mb-4 text-center">Gerador de Grafo de Alocação de Recursos</h1>
@@ -89,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Recursos (ex: R1:2)</label>
-                                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:2
+                <textarea id="recursos-input" class="mt-1 block w-full border border-gray-300 rounded-md p-2" rows="5">R1:2
 R2:3
 R3:2</textarea>
             </div>
@@ -119,6 +126,11 @@ P3:R3</textarea>
         <div class="mt-6 text-center">
             <button onclick="generateGraph()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Gerar Grafo</button>
             <button onclick="viewHistory()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded ml-2">Ver Histórico</button>
+            <label for="input-json" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded ml-2 cursor-pointer">
+                Input JSON
+            </label>
+            <input id="input-json" type="file" accept=".json" class="hidden" onchange="readJsonFile(this)">
+            <button onclick="downloadJson()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded ml-2">Download JSON</button>
         </div>
         <div id="error-message" class="mt-4 text-center"></div>
         <div id="save-result" class="mt-2 text-center text-sm"></div>
@@ -131,10 +143,154 @@ P3:R3</textarea>
     </div>
 
     <script>
+        function readJsonFile(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+
+                        // Preencher caixas de texto com os dados do JSON
+                        if (jsonData.recursos) {
+                            const recursosText = Object.entries(jsonData.recursos)
+                                .map(([key, value]) => `${key}:${value}`)
+                                .join('\n');
+                            document.getElementById('recursos-input').value = recursosText;
+                        }
+
+                        if (jsonData.processos) {
+                            document.getElementById('processos-input').value = jsonData.processos.join('\n');
+                        }
+
+                        if (jsonData.alocacoes) {
+                            const alocacoesText = Object.entries(jsonData.alocacoes)
+                                .flatMap(([recurso, processos]) =>
+                                    processos.map(processo => `${recurso}:${processo}`)
+                                )
+                                .join('\n');
+                            document.getElementById('alocacoes-input').value = alocacoesText;
+                        }
+
+                        if (jsonData.requisicoes) {
+                            const requisicoesText = Object.entries(jsonData.requisicoes)
+                                .flatMap(([processo, recursos]) =>
+                                    recursos.map(recurso => `${processo}:${recurso}`)
+                                )
+                                .join('\n');
+                            document.getElementById('requisicoes-input').value = requisicoesText;
+                        }
+
+                        document.getElementById('error-message').innerHTML =
+                            `<span class="text-green-600">Arquivo JSON importado com sucesso!</span>`;
+
+                    } catch (error) {
+                        document.getElementById('error-message').textContent =
+                            `Erro ao processar o arquivo JSON: ${error.message}`;
+                    }
+                };
+
+                reader.readAsText(input.files[0]);
+            }
+        }
+
+        // Função para baixar os dados das caixas de texto como um arquivo JSON
+        function downloadJson() {
+            try {
+                // Obter valores de entrada
+                const recursosText = document.getElementById('recursos-input').value.trim();
+                const processosText = document.getElementById('processos-input').value.trim();
+                const alocacoesText = document.getElementById('alocacoes-input').value.trim();
+                const requisicoesText = document.getElementById('requisicoes-input').value.trim();
+
+                // Inicializar estrutura JSON
+                const config = {
+                    recursos: {},
+                    processos: [],
+                    alocacoes: {},
+                    requisicoes: {}
+                };
+
+                // Processar recursos (ex: R1:2)
+                if (recursosText) {
+                    const lines = recursosText.split('\n').map(line => line.trim()).filter(line => line);
+                    for (const line of lines) {
+                        if (!/^[A-Za-z0-9]+:\d+$/.test(line)) {
+                            throw new Error(`Formato de recurso inválido: "${line}". Use o formato "R1:2".`);
+                        }
+                        const [id, units] = line.split(':');
+                        config.recursos[id] = parseInt(units);
+                    }
+                }
+
+                // Processar processos (ex: P1)
+                if (processosText) {
+                    const lines = processosText.split('\n').map(line => line.trim()).filter(line => line);
+                    for (const line of lines) {
+                        if (!/^[A-Za-z0-9]+$/.test(line)) {
+                            throw new Error(`Formato de processo inválido: "${line}". Use o formato "P1".`);
+                        }
+                        config.processos.push(line);
+                    }
+                }
+
+                // Processar alocações (ex: R1:P1)
+                if (alocacoesText) {
+                    const lines = alocacoesText.split('\n').map(line => line.trim()).filter(line => line);
+                    for (const line of lines) {
+                        if (!/^[A-Za-z0-9]+:[A-Za-z0-9]+$/.test(line)) {
+                            throw new Error(`Formato de alocação inválido: "${line}". Use o formato "R1:P1".`);
+                        }
+                        const [resource, process] = line.split(':');
+                        if (!config.alocacoes[resource]) {
+                            config.alocacoes[resource] = [];
+                        }
+                        config.alocacoes[resource].push(process);
+                    }
+                }
+
+                // Processar requisições (ex: P1:R1)
+                if (requisicoesText) {
+                    const lines = requisicoesText.split('\n').map(line => line.trim()).filter(line => line);
+                    for (const line of lines) {
+                        if (!/^[A-Za-z0-9]+:[A-Za-z0-9]+$/.test(line)) {
+                            throw new Error(`Formato de requisição inválido: "${line}". Use o formato "P1:R1".`);
+                        }
+                        const [process, resource] = line.split(':');
+                        if (!config.requisicoes[process]) {
+                            config.requisicoes[process] = [];
+                        }
+                        config.requisicoes[process].push(resource);
+                    }
+                }
+
+                // Criar e baixar o arquivo JSON
+                const jsonString = JSON.stringify(config, null, 2);
+                const blob = new Blob([jsonString], {
+                    type: 'application/json'
+                });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'configuracao_recursos.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                document.getElementById('error-message').innerHTML =
+                    `<span class="text-green-600">Arquivo JSON baixado com sucesso!</span>`;
+
+            } catch (error) {
+                document.getElementById('error-message').textContent =
+                    `Erro ao gerar arquivo JSON: ${error.message}`;
+            }
+        }
         // Armazenar o último resultado para acesso pela função de histórico
         let lastResult = null;
         let currentSlide = 0;
-        
+
         async function loadPyodideAndPackages() {
             let pyodide = await loadPyodide();
             await pyodide.loadPackage(['matplotlib', 'networkx']);
@@ -153,7 +309,7 @@ P3:R3</textarea>
                 deadlock_detectado: resultObj.deadlock_detectado,
                 ciclo: resultObj.ciclo
             };
-            
+
             try {
                 const response = await fetch('web.php', {
                     method: 'POST',
@@ -162,11 +318,11 @@ P3:R3</textarea>
                     },
                     body: `action=save_result&data=${encodeURIComponent(JSON.stringify(saveData))}`
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Resposta da rede não foi ok');
                 }
-                
+
                 const data = await response.json();
                 document.getElementById('save-result').innerHTML = `<span class="text-blue-600">Resultado salvo com ID #${data.id}</span>`;
                 return data.id;
@@ -649,14 +805,14 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
         
         # Caso 2: Deadlock com ciclos
         if not sequencia_segura and ciclos_validos:
-            # Mostra os ciclos mais relevantes (até 3)
-            for i, ciclo in enumerate(ciclos_validos[:3]):
-                etapas.append(renderizar_grafo(
-                    grafo, 
-                    pos,
-                    titulo=f"Ciclo potencial #{i+1}: {' -> '.join(ciclo)}",
-                    destacar_ciclo=ciclo
-                ))
+            # Pula a visualização de ciclos potenciais, apenas guarda o primeiro ciclo
+            # for i, ciclo in enumerate(ciclos_validos[:3]):
+            #     etapas.append(renderizar_grafo(
+            #         grafo, 
+            #         pos,
+            #         titulo=f"Ciclo potencial #{i+1}: {' -> '.join(ciclo)}",
+            #         destacar_ciclo=ciclo
+            #     ))
             
             # Usa o primeiro ciclo como referência
             ciclo_principal = ciclos_validos[0]
@@ -769,23 +925,23 @@ resultado = {
 }
 json.dumps(resultado)
                 `);
-                
+
                 // Analisa o resultado JSON
                 const resultObj = JSON.parse(result);
-                
+
                 // Armazenar resultado para uso pelo visualizador de histórico
                 lastResult = resultObj;
-                
+
                 // Exibe imagem
                 graphOutput.innerHTML = `<img src="data:image/png;base64,${resultObj.img_base64}" alt="Grafo de Alocação de Recursos" class="max-w-full">`;
-                
+
                 // Exibe mensagem sobre deadlock
                 if (resultObj.deadlock_detectado) {
                     errorMessage.innerHTML = `<span class="text-red-600 font-bold">!! DEADLOCK detectado!</span><br>Ciclo envolvido: ${resultObj.ciclo.join(' -> ')}`;
                 } else {
                     errorMessage.innerHTML = `<span class="text-green-600 font-bold">-- Nenhum deadlock detectado.</span>`;
                 }
-                
+
                 // Salva o resultado no arquivo JSON
                 const execId = await saveResult(config, resultObj);
             } catch (e) {
@@ -794,21 +950,21 @@ json.dumps(resultado)
                 console.error(e);
             }
         }
-        
+
         // Função para visualizar o histórico de detecção de deadlock
         async function viewHistory() {
             if (!lastResult || !lastResult.etapas || lastResult.etapas.length === 0) {
                 document.getElementById('error-message').textContent = 'Nenhum histórico disponível. Gere um grafo primeiro.';
                 return;
             }
-            
+
             const graphOutput = document.getElementById('graph-output');
             const historyControls = document.getElementById('history-controls');
             const etapas = lastResult.etapas;
-            
+
             // Reset slide counter
             currentSlide = 0;
-            
+
             // Criar o container para os slides
             graphOutput.innerHTML = `
                 <h2 class="text-xl font-bold mt-2 mb-4 text-center">Histórico de Detecção de Deadlock</h2>
@@ -822,11 +978,11 @@ json.dumps(resultado)
                     </div>
                 </div>
             `;
-            
+
             // Mostrar os controles
             historyControls.classList.remove('hidden');
             document.getElementById('slide-counter').textContent = `1/${etapas.length}`;
-            
+
             // Configurar botões de navegação
             document.getElementById('prev-slide').onclick = () => {
                 if (currentSlide > 0) {
@@ -834,29 +990,30 @@ json.dumps(resultado)
                     updateSlide();
                 }
             };
-            
+
             document.getElementById('next-slide').onclick = () => {
                 if (currentSlide < etapas.length - 1) {
                     currentSlide++;
                     updateSlide();
                 }
             };
-            
+
             updateSlide();
         }
-        
+
         function updateSlide() {
             const wrapper = document.getElementById('slide-wrapper');
             const counter = document.getElementById('slide-counter');
             const etapas = lastResult.etapas;
-            
+
             wrapper.style.transform = `translateX(-${currentSlide * 100}%)`;
             counter.textContent = `${currentSlide + 1}/${etapas.length}`;
-            
+
             // Desativar/ativar botões conforme necessário
             document.getElementById('prev-slide').disabled = currentSlide === 0;
             document.getElementById('next-slide').disabled = currentSlide === etapas.length - 1;
         }
     </script>
 </body>
+
 </html>
