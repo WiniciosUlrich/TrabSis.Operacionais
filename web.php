@@ -463,7 +463,7 @@ for processo, recs in requisicoes.items():
     for rec in recs:
         G.add_edge(processo, rec)
 
-def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo de Alocação de Recursos", destacar_ciclo=None):
+def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo de Alocação de Recursos", destacar_ciclo=None, processed_edges=None):
     """Renderiza o grafo com cores e destaque para visualização"""
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
@@ -504,6 +504,9 @@ def renderizar_grafo(G, pos, node_colors=None, edge_colors=None, titulo="Grafo d
         if edge_colors and edge in edge_colors:
             edge_color = edge_colors[edge]
             edge_width = 2.0
+        elif processed_edges and edge in processed_edges:
+            edge_color = 'white'  # Arestas processadas ficam brancas
+            edge_width = 0.5
         elif destacar_ciclo and edge[0] in destacar_ciclo and edge[1] in destacar_ciclo:
             idx0 = destacar_ciclo.index(edge[0])
             idx1 = destacar_ciclo.index(edge[1])
@@ -546,6 +549,9 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
     recursos_disponiveis = {r: recursos[r] for r in recursos}
     alocacoes_atuais = {r: list(procs) for r, procs in alocacoes.items()}
     requisicoes_atuais = {p: list(reqs) for p, reqs in requisicoes.items()}
+    
+    # Inicializa conjunto para arestas processadas (concluídas)
+    processed_edges = set()
     
     # Calcula recursos disponíveis iniciais
     for recurso, processos_list in alocacoes_atuais.items():
@@ -616,6 +622,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                         pos,
                         node_colors=node_colors,
                         edge_colors=edge_colors,
+                        processed_edges=processed_edges,
                         titulo=f"Rodada {rodada}: Processo {processo} selecionado para execução"
                     )
                 )
@@ -631,6 +638,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                         pos,
                         node_colors=node_colors,
                         edge_colors=edge_colors_req,
+                        processed_edges=processed_edges,
                         titulo=f"Rodada {rodada}: Processo {processo} utilizando recursos requisitados"
                     )
                 )
@@ -642,14 +650,15 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                         alocacoes_atuais[recurso] = [p for p in proc_list if p != processo]
                         recursos_disponiveis[recurso] += count
                         
-                        if grafo_trabalho.has_edge(recurso, processo):
-                            grafo_trabalho.remove_edge(recurso, processo)
-                
-                # Remove requisições do processo
+                        # Em vez de remover, adiciona ao conjunto de arestas processadas
+                        for _ in range(grafo_trabalho.number_of_edges(recurso, processo)):
+                            processed_edges.add((recurso, processo))
+
+                # Remove requisições do processo - também apenas marca como processada
                 if processo in requisicoes_atuais:
                     for recurso in requisicoes_atuais[processo]:
-                        if grafo_trabalho.has_edge(processo, recurso):
-                            grafo_trabalho.remove_edge(processo, recurso)
+                        for _ in range(grafo_trabalho.number_of_edges(processo, recurso)):
+                            processed_edges.add((processo, recurso))
                     requisicoes_atuais[processo] = []
                 
                 # Remove processo da lista de pendentes
@@ -661,6 +670,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                         grafo_trabalho.copy(),
                         pos,
                         node_colors={processo: 'lightgray'},
+                        processed_edges=processed_edges,
                         titulo=f"Rodada {rodada}: Processo {processo} concluído, recursos liberados. Disponíveis: {recursos_disponiveis}"
                     )
                 )
@@ -699,6 +709,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                 grafo_trabalho.copy(),
                 pos,
                 node_colors=node_colors,
+                processed_edges=processed_edges,
                 titulo=f"DEADLOCK DETECTADO: {len(processos_restantes)} processos bloqueados"
             )
         )
@@ -742,6 +753,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                     pos,
                     node_colors=node_colors_individual,
                     edge_colors=edge_colors,
+                    processed_edges=processed_edges,
                     titulo=f"Processo {processo} em deadlock ({i+1}/{len(processos_restantes)}): {motivo}"
                 )
             )
@@ -752,6 +764,7 @@ def verificar_sequencia_segura(grafo, recursos, alocacoes, requisicoes):
                 grafo_trabalho.copy(),
                 pos,
                 node_colors=node_colors,
+                processed_edges=processed_edges,
                 titulo=f"CONCLUSÃO: Deadlock confirmado - {len(processos_restantes)} processos não podem ser completados"
             )
         )
@@ -806,15 +819,6 @@ def detecta_deadlock_com_unidades(grafo, recursos, alocacoes, requisicoes):
         # Caso 2: Deadlock com ciclos
         if not sequencia_segura and ciclos_validos:
             # Pula a visualização de ciclos potenciais, apenas guarda o primeiro ciclo
-            # for i, ciclo in enumerate(ciclos_validos[:3]):
-            #     etapas.append(renderizar_grafo(
-            #         grafo, 
-            #         pos,
-            #         titulo=f"Ciclo potencial #{i+1}: {' -> '.join(ciclo)}",
-            #         destacar_ciclo=ciclo
-            #     ))
-            
-            # Usa o primeiro ciclo como referência
             ciclo_principal = ciclos_validos[0]
             
             # Conclusão final
